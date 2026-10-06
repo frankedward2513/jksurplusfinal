@@ -242,7 +242,6 @@ export const InventoryManagementView: React.FC = () => {
 
     const matchedBale = bales.find((b) => b.baleCode === productBaleCode);
     const baleName = matchedBale ? matchedBale.baleName : 'Direct Stock';
-    const autoBarcode = `EX-${Math.floor(100000 + Math.random() * 900000)}`;
 
     if (editingProductId) {
       await updateProduct(editingProductId, {
@@ -272,8 +271,8 @@ export const InventoryManagementView: React.FC = () => {
         imageUrl: productImageUrl,
         productLink,
         description: productDesc,
-        barcode: autoBarcode,
-        barcodeStatus: 'new',
+        barcode: '',
+        barcodeStatus: 'done',
       });
     }
 
