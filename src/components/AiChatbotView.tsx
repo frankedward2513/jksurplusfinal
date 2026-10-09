@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Bot, Sparkles, Send, Trash2, ArrowRight } from 'lucide-react';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { isInventoryOrExpenseQuestion, OUT_OF_SCOPE_REPLY } from '../utils/aiChatScope';
 
 interface ChatMessage {
   id: string;
@@ -11,7 +12,7 @@ interface ChatMessage {
 }
 
 export const AiChatbotView: React.FC = () => {
-  const { products, bales, expenseAccounts, expenses, orders, transactions, categories } = useStore();
+  const { products, bales, expenseAccounts, expenses, categories } = useStore();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -31,40 +32,13 @@ export const AiChatbotView: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Check if user query is related to store operations, inventory, expenses, or database
-  const isInventoryOrExpenseTopic = (text: string): boolean => {
-    const q = text.toLowerCase().trim();
-    const inventoryExpenseKeywords = [
-      'inventory', 'product', 'products', 'item', 'items', 'stock', 'stocks', 'bale', 'bales',
-      'category', 'categories', 'supplier', 'suppliers', 'barcode', 'barcodes', 'quantity',
-      'available', 'remaining', 'out of stock', 'low stock', 'restock', 'reorder',
-      'cost', 'price', 'pricing', 'selling price', 'cost price', 'apparel', 'clothing',
-      'expense', 'expenses', 'account', 'accounts', 'disbursement', 'disbursements',
-      'budget', 'budgets', 'spent', 'spending', 'utility', 'utilities', 'electric',
-      'meralco', 'water', 'rent', 'salary', 'salaries', 'wages', 'wage', 'operational',
-      'outflow', 'ledger', 'disburse', 'break-even', 'breakeven', 'margin', 'loss',
-      'damaged', 'lost', 'returned', 'summary', 'overview', 'performance', 'balance',
-      'sales', 'sale', 'database', 'db', 'fetch', 'data', 'store', 'record', 'records',
-      'order', 'orders', 'report', 'stats', 'figures', 'inflow', 'revenue',
-      'recommend', 'recommendation', 'recommendations', 'suggest', 'suggestion', 'suggestions',
-      'strategy', 'strategies', 'advice', 'optimize', 'improve', 'cut', 'reduce',
-      'deadstock', 'clearance', 'discount', 'bundle', 'markup', 'cogs', 'profit',
-      'hi', 'hello', 'hey', 'help', 'exins', 'novaliches'
-    ];
-    return inventoryExpenseKeywords.some((k) => q.includes(k));
-  };
-
-  // Smart fallback resolver directly from live store state with high-intelligence recommendations
+  // Build a scoped fallback answer from live inventory and expense data.
   const getLiveDatabaseAnswer = (queryText: string): string => {
     const q = queryText.toLowerCase().trim();
     const totalUnits = products.reduce((sum, p) => sum + (p.availableQuantity || 0), 0);
     const lowStock = products.filter((p) => (p.availableQuantity || 0) > 0 && (p.availableQuantity || 0) <= 3);
     const outOfStock = products.filter((p) => (p.availableQuantity || 0) <= 0);
     const totalExp = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalInflow = transactions.filter((t) => t.flowType === 'inflow').reduce((s, t) => s + (t.inflow || 0), 0);
-    const breakEvenBales = bales.filter((b) => (b.totalSalesMade || 0) >= b.totalPurchasePrice);
-    const pendingBales = bales.filter((b) => (b.totalSalesMade || 0) < b.totalPurchasePrice);
-    const pendingOrders = orders.filter((o) => o.status === 'pending');
 
     // 1. RECOMMENDATIONS & BUSINESS STRATEGY
     if (
@@ -75,7 +49,7 @@ export const AiChatbotView: React.FC = () => {
       q.includes('optimize') ||
       q.includes('improve')
     ) {
-      let advice = `🎯 **Strategic Business & Operational Recommendations for EXINS Jksur+ Novaliches**:\n\n`;
+      let advice = `🎯 **Inventory & Expense Recommendations for EXINS Jksur+ Novaliches**:\n\n`;
 
       // Restocking recommendation
       if (outOfStock.length > 0 || lowStock.length > 0) {
@@ -88,19 +62,8 @@ export const AiChatbotView: React.FC = () => {
           `• Stock levels across all ${products.length} products are healthy (>3 units each).\n\n`;
       }
 
-      // Bale break-even push recommendation
-      if (pendingBales.length > 0) {
-        const worstBale = [...pendingBales].sort(
-          (a, b) => (b.totalPurchasePrice - (b.totalSalesMade || 0)) - (a.totalPurchasePrice - (a.totalSalesMade || 0))
-        )[0];
-        const deficit = Math.max(0, worstBale.totalPurchasePrice - (worstBale.totalSalesMade || 0));
-        advice += `🏷️ **2. Bale Liquidation & Break-Even Acceleration**:\n` +
-          `• Focus Bale: **[${worstBale.baleCode}] ${worstBale.baleName}** still needs ₱${deficit.toLocaleString()} to reach break-even.\n` +
-          `• Recommendation: Implement a "2 for ₱300" or "Thrift Friday 20% Off" bundle promotion on items from this bale to liquidate pieces quickly.\n\n`;
-      } else if (bales.length > 0) {
-        advice += `🏷️ **2. Bale Performance**:\n` +
-          `• All ${bales.length} registered bales have achieved 100% break-even! Excellent capital recovery.\n\n`;
-      }
+      advice += `🏷️ **Bale Inventory**:\n` +
+        `• ${bales.length} bales are recorded. Review their quantities and purchase costs in Inventory Management.\n\n`;
 
       // Expense control recommendation
       const overBudgetAccounts = expenseAccounts.filter((a) => (a.totalSpent || 0) > a.monthlyBudget);
@@ -113,11 +76,6 @@ export const AiChatbotView: React.FC = () => {
         advice += `✂️ **3. Expense Control**:\n` +
           `• All ${expenseAccounts.length} expense accounts are within their monthly budgets. Keep maintaining this strict fiscal discipline!\n\n`;
       }
-
-      // Profit & Pricing recommendation
-      advice += `📈 **4. Pricing & Cash Flow Strategy**:\n` +
-        `• Current Net Position: ₱${(totalInflow - totalExp).toLocaleString()} (Inflows: ₱${totalInflow.toLocaleString()} | Outflows: ₱${totalExp.toLocaleString()}).\n` +
-        `• Recommendation: Premium thrift items (vintage jackets, branded sneakers) can carry a 65%+ markup, while standard cotton shirts should be priced for velocity (₱120–₱180) to maximize stock rotation.`;
 
       return advice;
     }
@@ -153,7 +111,7 @@ export const AiChatbotView: React.FC = () => {
     // 3. LOW STOCK & RESTOCKING
     if (q.includes('low stock') || q.includes('out of stock') || q.includes('restock') || q.includes('reorder')) {
       if (lowStock.length === 0 && outOfStock.length === 0) {
-        return `✅ **Direct Answer: Zero Urgent Stock Depletions!**\nAll ${products.length} products in your store inventory have healthy stock levels (> 3 units each).\n\n💡 **Recommendation**: Monitor customer purchases in POS and Showcase Shop; when any item hits 3 units, prepare reorder sheets with your bale suppliers.`;
+        return `✅ **Direct Answer: Zero Urgent Stock Depletions!**\nAll ${products.length} products in your inventory have healthy stock levels (> 3 units each).\n\n💡 **Recommendation**: Review stock levels regularly and prepare reorder lists with suppliers when items approach their minimum stock level.`;
       }
 
       let report = `📦 **Direct Answer: ${outOfStock.length} items out of stock and ${lowStock.length} items low in stock**:\n\n`;
@@ -172,31 +130,22 @@ export const AiChatbotView: React.FC = () => {
       return report;
     }
 
-    // 4. BALES & BREAK-EVEN ANALYSIS
-    if (q.includes('bale') || q.includes('break-even') || q.includes('breakeven')) {
+    // Bale inventory and purchase costs.
+    if (q.includes('bale')) {
       if (bales.length === 0) {
         return 'No bales are currently registered in your inventory database. Record new bales under "Inventory Management" -> "Bale Management".';
       }
 
-      let reply = `🏷️ **Direct Answer: ${breakEvenBales.length} of ${bales.length} bales have achieved Break-Even**\n\n`;
+      let reply = `🏷️ **Direct Answer: ${bales.length} bales are recorded in inventory**\n\n`;
       reply += bales.slice(0, 6).map((b) => {
-        const isBe = (b.totalSalesMade || 0) >= b.totalPurchasePrice;
-        const rem = Math.max(0, b.totalPurchasePrice - (b.totalSalesMade || 0));
-        return `• **[${b.baleCode}] ${b.baleName}**: Cost ₱${b.totalPurchasePrice.toLocaleString()} | Sales ₱${(b.totalSalesMade || 0).toLocaleString()} → ${
-          isBe ? '✅ Break-even Reached!' : `⏳ Needs ₱${rem.toLocaleString()} more`
-        }`;
+        return `• **[${b.baleCode}] ${b.baleName}**: Purchase cost ₱${b.totalPurchasePrice.toLocaleString()} | Status: ${b.status}`;
       }).join('\n');
-
-      if (pendingBales.length > 0) {
-        reply += `\n\n💡 **Recommendation to Recover Bale Investment**:\n` +
-          `• For pending bales, organize clearance baskets or "₱99 Take All" racks to accelerate liquidation and release tied-up cash for fresh inventory.`;
-      }
 
       return reply;
     }
 
     // 5. EXPENSE & BUDGET STATUS
-    if (q.includes('expense') || q.includes('budget') || q.includes('disbursement') || q.includes('spending')) {
+    if (/\b(?:expense|expenses|budget|budgets|disbursement|disbursements|spending|spent)\b/.test(q)) {
       let reply = `💰 **Direct Answer: Total Recorded Expenses = ₱${totalExp.toLocaleString()} Across ${expenseAccounts.length} Accounts**\n\n`;
       reply += expenseAccounts.slice(0, 6).map((a) => {
         const spent = a.totalSpent || 0;
@@ -210,43 +159,18 @@ export const AiChatbotView: React.FC = () => {
       reply += `\n\n💡 **Financial Recommendation**:\n` +
         (overBudget.length > 0
           ? `• ${overBudget.length} account(s) exceed monthly limits. Review disbursements under "Finance Management" -> "Expense Tracker" to halt non-essential purchases.`
-          : `• All accounts are within budget. Maintain this pace to maximize your net operating profit!`);
+          : `• All accounts are within budget. Continue reviewing expense records regularly.`);
 
       return reply;
     }
 
-    // 6. PROFIT & MARGINS
-    if (q.includes('profit') || q.includes('margin') || q.includes('markup')) {
-      const netProfit = totalInflow - totalExp;
-      const margin = totalInflow > 0 ? ((netProfit / totalInflow) * 100).toFixed(1) : '0';
-
-      return `📈 **Direct Answer: Net Operating Profit is ₱${netProfit.toLocaleString()} (Margin: ${margin}%)**\n\n` +
-        `• Total Revenue Inflow: ₱${totalInflow.toLocaleString()}\n` +
-        `• Total Operational Disbursements: ₱${totalExp.toLocaleString()}\n` +
-        `• Net Profit: ${netProfit >= 0 ? '+' : ''}₱${netProfit.toLocaleString()}\n\n` +
-        `💡 **Recommendations to Increase Profit Margins**:\n` +
-        `1. **Focus on High-Margin Categories**: Jackets, branded outerwear, and vintage jeans command 60%+ margins; feature them on mannequin displays and front shop racks.\n` +
-        `2. **Bundle Slower Moving Apparel**: Create "3 for ₱450" deals to increase basket size and average spend per customer.\n` +
-        `3. **Cut Over-Budget Expenses**: Every ₱1,000 saved on utility or administrative costs drops directly to your bottom line.`;
-    }
-
-    // 7. ORDERS & SALES
-    if (q.includes('order') || q.includes('orders') || q.includes('sale') || q.includes('sales')) {
-      return `🛒 **Direct Answer: Live Orders & Revenue Performance**:\n` +
-        `• Total Customer Orders: **${orders.length} orders** recorded\n` +
-        `• Pending Fulfillment: **${pendingOrders.length} orders**\n` +
-        `• Total Recorded Revenue Inflow: **₱${totalInflow.toLocaleString()}**\n\n` +
-        `💡 **Recommendation**: Promptly process pending online orders under Showcase Shop to keep customer satisfaction high and maintain reliable courier drop-offs!`;
-    }
-
-    // 8. DEFAULT FULL EXECUTIVE DATABASE SUMMARY
-    return `📊 **Executive Database Summary for EXINS Jksur+ Novaliches**:\n\n` +
+    // Default scoped inventory and expense summary.
+    return `📊 **Inventory & Expense Summary for EXINS Jksur+ Novaliches**:\n\n` +
       `📦 **Inventory**: ${products.length} products listed with ${totalUnits.toLocaleString()} units in stock across ${categories.length} categories.\n` +
       `⚠️ **Stock Status**: ${lowStock.length} items low in stock (<= 3 pcs), ${outOfStock.length} out of stock.\n` +
-      `🏷️ **Bales**: ${bales.length} total bales (${breakEvenBales.length} break-even achieved).\n` +
+      `🏷️ **Bales**: ${bales.length} total bales.\n` +
       `💰 **Expenses**: ${expenseAccounts.length} budget accounts with ₱${totalExp.toLocaleString()} in recorded disbursements.\n` +
-      `🛒 **Orders**: ${orders.length} total orders (${pendingOrders.length} pending) with ₱${totalInflow.toLocaleString()} total sales inflow.\n\n` +
-      `💡 **Top Recommendation**: Ask me "What are your recommendations to reduce expenses?" or "Which products need urgent restocking?" for deep operational strategies!`;
+      `Ask about a specific product, stock level, bale, expense account, or budget for details.`;
   };
 
   // Context data payload strictly containing live database values
@@ -255,12 +179,7 @@ export const AiChatbotView: React.FC = () => {
     productCount: products.length,
     baleCount: bales.length,
     categoryCount: categories.length,
-    orderCount: orders.length,
     totalExpenses: expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
-    totalSales: transactions.filter((t) => t.flowType === 'inflow').reduce((s, t) => s + (t.inflow || 0), 0),
-    netOperatingProfit:
-      transactions.filter((t) => t.flowType === 'inflow').reduce((s, t) => s + (t.inflow || 0), 0) -
-      expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
     totalUnitsInStock: products.reduce((sum, p) => sum + (p.availableQuantity || 0), 0),
     outOfStockCount: products.filter((p) => (p.availableQuantity || 0) <= 0).length,
     lowStockProducts: products
@@ -274,16 +193,12 @@ export const AiChatbotView: React.FC = () => {
       availableStock: p.availableQuantity,
       sellingPrice: p.sellingPrice,
       costPrice: p.costPrice || 0,
-      estimatedProfitMargin: p.sellingPrice > 0 ? `${(((p.sellingPrice - (p.costPrice || 0)) / p.sellingPrice) * 100).toFixed(1)}%` : '0%',
     })),
     bales: bales.map((b) => ({
       code: b.baleCode,
       name: b.baleName,
       supplier: b.supplierName,
       totalCost: b.totalPurchasePrice,
-      totalSalesMade: b.totalSalesMade || 0,
-      breakEvenAchieved: (b.totalSalesMade || 0) >= b.totalPurchasePrice,
-      remainingToBreakEven: Math.max(0, b.totalPurchasePrice - (b.totalSalesMade || 0)),
       status: b.status,
     })),
     categories: categories.map((c) => ({
@@ -322,11 +237,11 @@ export const AiChatbotView: React.FC = () => {
     if (!customPrompt) setInput('');
 
     // Strict guard: if the prompt is not related to store inventory, expenses, or business recommendations, refuse immediately
-    if (!isInventoryOrExpenseTopic(textToSend)) {
+    if (!isInventoryOrExpenseQuestion(textToSend)) {
       const refusalMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: "I can only answer questions and provide recommendations regarding inventory and expenses in your system. Please ask about your store's products, stock levels, categories, bales, supplier costs, budgets, operational disbursements, or retail recommendations!",
+        text: OUT_OF_SCOPE_REPLY,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, refusalMsg]);
@@ -341,20 +256,14 @@ export const AiChatbotView: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: textToSend.trim(),
-          systemInstruction:
-            'You are "Hi I\'m your AI Exins", the expert Senior Business, Inventory & Expense Intelligence Consultant for EXINS Jksur+ Novaliches Quezon City.\n\n' +
-            'CRITICAL SCOPE RULE: You can ONLY answer questions and provide strategic recommendations regarding Inventory (products, stock levels, categories, bales, suppliers, restocking, clearance) and Expenses (budgets, accounts, disbursements, cost reduction, profit margins) for EXINS Jksur+ Novaliches.\n' +
-            'If the prompt is NOT about inventory, expenses, or store financial operations, you MUST reply: "I can only answer questions and provide recommendations regarding inventory and expenses in your system."\n\n' +
-            'HIGH-INTELLIGENCE DIRECTIVES:\n' +
-            '1. DIRECT ANSWER FIRST: Directly and explicitly answer the user\'s specific question in the very first sentence using exact numbers from the provided context (in Philippine Pesos ₱).\n' +
-            '2. CONCRETE RECOMMENDATIONS: Always provide high-value, actionable "💡 Recommendations" tailored to thrift store operations (e.g. specific reorder priorities, clearance bundle promotions, utility cost cutting, supplier renegotiation).\n' +
-            '3. EXACT DATA CITATION: Cite exact product names, bale codes, stock quantities, and budget account balances from the live context.\n' +
-            '4. PROFESSIONAL & ENCOURAGING: Keep formatting clear with bold metrics and clean bullet points.',
           contextData,
         }),
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'The assistant request failed.');
+      }
       const replyText =
         data.text && !data.fallback
           ? data.text
@@ -368,14 +277,15 @@ export const AiChatbotView: React.FC = () => {
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-    } catch {
-      const fallbackMsg: ChatMessage = {
+    } catch (error) {
+      console.error('Inventory and expense assistant request failed:', error);
+      const errorMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: getLiveDatabaseAnswer(textToSend.trim()),
+        text: 'I could not reach the inventory and expense assistant. Please try again shortly.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setLoading(false);
     }
@@ -400,10 +310,10 @@ export const AiChatbotView: React.FC = () => {
   const quickPrompts = [
     '💡 What are your top recommendations to reduce expenses?',
     '⚠️ Which products need urgent restocking and reordering?',
-    '🏷️ How are my bales performing and which need push to break even?',
+    '🏷️ What bale quantities and purchase costs are recorded?',
     '💰 What is my highest expense category and how can I cut it?',
-    '📈 Recommendations to increase profit margin and sales velocity',
-    '📊 Full live inventory & expense executive summary',
+    '📦 How can I improve inventory turnover and control expenses?',
+    '📊 Show my inventory and expense summary',
   ];
 
   return (
@@ -418,7 +328,7 @@ export const AiChatbotView: React.FC = () => {
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-white">Hi Im your AI Exins</h1>
               <span className="px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold tracking-widest uppercase border border-orange-500/30">
-                Business & Inventory Intelligence
+                Inventory & Expense Assistant
               </span>
             </div>
             <p className="text-xs text-stone-300">
@@ -492,7 +402,7 @@ export const AiChatbotView: React.FC = () => {
             <div className="w-7 h-7 rounded-xl bg-orange-600/30 flex items-center justify-center text-orange-400 animate-spin">
               <Bot className="w-4 h-4" />
             </div>
-            <span>Hi Im your AI Exins is analyzing your live store data and formulating recommendations...</span>
+            <span>Hi Im your AI Exins is reviewing inventory and expense data...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -508,7 +418,8 @@ export const AiChatbotView: React.FC = () => {
       >
         <input
           type="text"
-          placeholder="Ask Hi Im your AI Exins for inventory analysis, expense cuts, recommendations..."
+          maxLength={2000}
+          placeholder="Ask about shop inventory or expenses..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={loading}
