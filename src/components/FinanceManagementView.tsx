@@ -46,6 +46,7 @@ export const FinanceManagementView: React.FC = () => {
     deleteExpenseAccount,
     addExpense,
     deleteTransaction,
+    showFormAlert,
   } = useStore();
 
   // 3 Tabs: 'accounts' | 'record' | 'history'
@@ -86,11 +87,14 @@ export const FinanceManagementView: React.FC = () => {
 
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accountName || !monthlyBudget) return;
+    if (!accountName.trim() || !Number.isFinite(Number(monthlyBudget)) || Number(monthlyBudget) <= 0) {
+      showFormAlert('Enter an expense account name and a valid monthly budget greater than zero.');
+      return;
+    }
 
     if (editingAccountId) {
       await updateExpenseAccount(editingAccountId, {
-        name: accountName,
+        name: accountName.trim(),
         monthlyBudget: Number(monthlyBudget),
         description: accountDesc,
         color: accountColor,
@@ -98,7 +102,7 @@ export const FinanceManagementView: React.FC = () => {
       setEditingAccountId(null);
     } else {
       await addExpenseAccount({
-        name: accountName,
+        name: accountName.trim(),
         monthlyBudget: Number(monthlyBudget),
         description: accountDesc,
         color: accountColor,
@@ -140,7 +144,10 @@ export const FinanceManagementView: React.FC = () => {
 
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAccountId || !disbursementAmount) return;
+    if (!selectedAccountId || !Number.isFinite(Number(disbursementAmount)) || Number(disbursementAmount) <= 0) {
+      showFormAlert('Select an expense account and enter an amount greater than zero.');
+      return;
+    }
 
     const acc = expenseAccounts.find((a) => a.id === selectedAccountId);
     const accName = acc ? acc.name : 'General Operations';
@@ -694,6 +701,7 @@ export const FinanceManagementView: React.FC = () => {
                   <input
                     type="number"
                     min="1"
+                    step="0.01"
                     required
                     placeholder="15000"
                     value={monthlyBudget}
@@ -912,6 +920,7 @@ export const FinanceManagementView: React.FC = () => {
                 <input
                   type="number"
                   min="1"
+                  step="0.01"
                   required
                   placeholder="3500"
                   value={disbursementAmount}

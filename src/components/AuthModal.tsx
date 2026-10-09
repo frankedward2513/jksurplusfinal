@@ -164,7 +164,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
     setIsLoading(true);
     try {
       if (tab === 'login') {
-        await loginAs(email, password);
+        await loginAs(email.trim(), password);
         setConfirmationEmail(null);
         setConfirmationNotice(null);
         showFormAlert('You have been successfully signed in!');
@@ -343,6 +343,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
                   type="tel"
                   required
                   maxLength={13}
+                  pattern="[0-9]{4}-[0-9]{3}-[0-9]{4}"
+                  title="Use the format 0000-000-0000."
                   placeholder="0000-000-0000 (e.g. 0912-345-6789)"
                   value={phone}
                   onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
@@ -526,6 +528,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialTa
                         type="tel"
                         required
                         maxLength={13}
+                        pattern="[0-9]{4}-[0-9]{3}-[0-9]{4}"
+                        title="Use the format 0000-000-0000."
                         placeholder="0000-000-0000 (e.g. 0912-345-6789)"
                         value={phone}
                         onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}

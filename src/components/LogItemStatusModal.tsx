@@ -20,7 +20,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
   onClose,
   preselectedProductId,
 }) => {
-  const { products, categories, logItemStatus } = useStore();
+  const { products, categories, logItemStatus, showFormAlert } = useStore();
 
   const [selectedProductId, setSelectedProductId] = useState<string>(preselectedProductId || '');
   const logType: 'lost' = 'lost';
@@ -66,10 +66,20 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProductId || logQty <= 0) return;
+    if (!selectedProductId || !Number.isInteger(logQty) || logQty <= 0) {
+      showFormAlert('Select a product and enter a whole-number quantity greater than zero.');
+      return;
+    }
 
     const prod = products.find((p) => p.id === selectedProductId);
-    if (!prod) return;
+    if (!prod) {
+      showFormAlert('Please select a valid product.');
+      return;
+    }
+    if (logQty > prod.availableQuantity) {
+      showFormAlert(`Quantity cannot exceed the available stock of ${prod.availableQuantity} pieces.`);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -345,6 +355,8 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                 <input
                   type="number"
                   min="1"
+                  max={selectedProduct?.availableQuantity}
+                  step="1"
                   required
                   value={logQty}
                   onChange={(e) => setLogQty(Math.max(1, parseInt(e.target.value) || 1))}

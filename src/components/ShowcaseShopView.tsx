@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { Order } from '../types';
 import { ReceiptModal } from './ReceiptModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { isValidContactNumber, isValidEmail } from '../utils/validation';
 import {
   Search,
   ShoppingBag,
@@ -379,6 +380,22 @@ export const ShowcaseShopView: React.FC<ShowcaseShopViewProps> = ({
     e.preventDefault();
     if (selectedCartItems.length === 0) return;
     setCheckoutError(null);
+    if (!customerName.trim()) {
+      setCheckoutError('Please enter your full name.');
+      return;
+    }
+    if (!isValidContactNumber(contactNumber)) {
+      setCheckoutError('Please enter a valid contact number with 7 to 15 digits.');
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setCheckoutError('Please enter a valid email address.');
+      return;
+    }
+    if (!address.trim()) {
+      setCheckoutError('Please enter your complete delivery address.');
+      return;
+    }
     setIsSubmitting(true);
 
     const downPaymentAmount = 100;
@@ -1380,6 +1397,8 @@ export const ShowcaseShopView: React.FC<ShowcaseShopViewProps> = ({
                   <input
                     type="tel"
                     required
+                    maxLength={20}
+                    title="Enter 7 to 15 digits, with optional spaces, hyphens, parentheses, or a leading +."
                     placeholder="0912 345 6789"
                     value={contactNumber}
                     onChange={(e) => setContactNumber(e.target.value)}

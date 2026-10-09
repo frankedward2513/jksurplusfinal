@@ -21,6 +21,12 @@ export const isValidPhoneNumber = (value: string): boolean => {
   return /^\d{4}-\d{3}-\d{4}$/.test(value.trim());
 };
 
+export const isValidContactNumber = (value: string): boolean => {
+  const trimmedValue = value.trim();
+  const digitCount = trimmedValue.replace(/\D/g, '').length;
+  return /^[+]?[0-9\s().-]+$/.test(trimmedValue) && digitCount >= 7 && digitCount <= 15;
+};
+
 export const isValidEmail = (value: string): boolean => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 };

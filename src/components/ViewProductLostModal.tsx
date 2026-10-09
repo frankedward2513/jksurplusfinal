@@ -23,7 +23,14 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
   onClose,
   onOpenLogLostModal,
 }) => {
-  const { products, itemStatusLogs, updateItemStatusLog, deleteItemStatusLog, updateProduct } = useStore();
+  const {
+    products,
+    itemStatusLogs,
+    updateItemStatusLog,
+    deleteItemStatusLog,
+    updateProduct,
+    showFormAlert,
+  } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -106,6 +113,14 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
   const handleConfirmFound = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLogForUpdate) return;
+    if (
+      !Number.isInteger(foundQty) ||
+      foundQty < 1 ||
+      foundQty > selectedLogForUpdate.quantity
+    ) {
+      showFormAlert(`Enter a whole-number quantity from 1 to ${selectedLogForUpdate.quantity}.`);
+      return;
+    }
 
     setIsUpdating(true);
     try {
@@ -432,6 +447,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
                     type="number"
                     min="1"
                     max={selectedLogForUpdate.quantity}
+                    step="1"
                     value={foundQty}
                     onChange={(e) => setFoundQty(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-sm text-white focus:outline-none focus:border-emerald-500"

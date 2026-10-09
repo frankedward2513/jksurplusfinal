@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { LogItemStatusModal } from './LogItemStatusModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { isValidContactNumber, isValidEmail } from '../utils/validation';
 
 export const InventoryManagementView: React.FC = () => {
   const {
@@ -35,6 +36,7 @@ export const InventoryManagementView: React.FC = () => {
     addSupplier,
     updateSupplier,
     deleteSupplier,
+    showFormAlert,
   } = useStore();
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -93,7 +95,16 @@ export const InventoryManagementView: React.FC = () => {
 
   const handleSaveBale = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!baleName || !balePrice || !baleQuantity) return;
+    if (
+      !baleName.trim() ||
+      !Number.isFinite(Number(balePrice)) ||
+      Number(balePrice) <= 0 ||
+      !Number.isInteger(Number(baleQuantity)) ||
+      Number(baleQuantity) <= 0
+    ) {
+      showFormAlert('Enter a bale name, a purchase price greater than zero, and a whole-number quantity greater than zero.');
+      return;
+    }
 
     const suppObj = suppliers.find((s) => s.id === baleSupplierId);
     const supplierName = suppObj ? suppObj.name : 'Direct Import';
@@ -101,7 +112,7 @@ export const InventoryManagementView: React.FC = () => {
     if (editingBaleId) {
       await updateBale(editingBaleId, {
         baleCode,
-        baleName,
+        baleName: baleName.trim(),
         category: baleCategory || 'General Apparel',
         supplierId: baleSupplierId,
         supplierName,
@@ -114,7 +125,7 @@ export const InventoryManagementView: React.FC = () => {
     } else {
       await addBale({
         baleCode,
-        baleName,
+        baleName: baleName.trim(),
         category: baleCategory || 'General Apparel',
         supplierId: baleSupplierId,
         supplierName,
@@ -171,7 +182,10 @@ export const InventoryManagementView: React.FC = () => {
 
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!categoryName) return;
+    if (!categoryName.trim()) {
+      showFormAlert('Please enter a category name.');
+      return;
+    }
 
     if (editingCategoryId) {
       await updateCategory(editingCategoryId, {
@@ -238,14 +252,25 @@ export const InventoryManagementView: React.FC = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!productName || !productSellingPrice || !productQty) return;
+    if (
+      !productName.trim() ||
+      !Number.isInteger(Number(productQty)) ||
+      Number(productQty) <= 0 ||
+      !Number.isFinite(Number(productSellingPrice)) ||
+      Number(productSellingPrice) <= 0 ||
+      (productCostPrice !== '' &&
+        (!Number.isFinite(Number(productCostPrice)) || Number(productCostPrice) < 0))
+    ) {
+      showFormAlert('Enter a product name, a whole-number quantity greater than zero, and valid non-negative prices.');
+      return;
+    }
 
     const matchedBale = bales.find((b) => b.baleCode === productBaleCode);
     const baleName = matchedBale ? matchedBale.baleName : 'Direct Stock';
 
     if (editingProductId) {
       await updateProduct(editingProductId, {
-        name: productName,
+        name: productName.trim(),
         category: productCategory || 'Apparel',
         baleCode: productBaleCode,
         baleName,
@@ -260,7 +285,7 @@ export const InventoryManagementView: React.FC = () => {
       setEditingProductId(null);
     } else {
       await addProduct({
-        name: productName,
+        name: productName.trim(),
         category: productCategory || 'Apparel',
         baleCode: productBaleCode,
         baleName,
@@ -327,26 +352,37 @@ export const InventoryManagementView: React.FC = () => {
 
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supplierName) return;
+    if (!supplierName.trim()) {
+      showFormAlert('Please enter a supplier or company name.');
+      return;
+    }
+    if (supplierEmail.trim() && !isValidEmail(supplierEmail)) {
+      showFormAlert('Please enter a valid supplier email address.');
+      return;
+    }
+    if (supplierPhone.trim() && !isValidContactNumber(supplierPhone)) {
+      showFormAlert('Please enter a valid supplier contact number.');
+      return;
+    }
 
     if (editingSupplierId) {
       await updateSupplier(editingSupplierId, {
-        name: supplierName,
-        contactPerson,
-        email: supplierEmail,
-        phone: supplierPhone,
-        address: supplierAddress,
-        description: supplierDesc,
+        name: supplierName.trim(),
+        contactPerson: contactPerson.trim(),
+        email: supplierEmail.trim(),
+        phone: supplierPhone.trim(),
+        address: supplierAddress.trim(),
+        description: supplierDesc.trim(),
       });
       setEditingSupplierId(null);
     } else {
       await addSupplier({
-        name: supplierName,
-        contactPerson,
-        email: supplierEmail,
-        phone: supplierPhone,
-        address: supplierAddress,
-        description: supplierDesc,
+        name: supplierName.trim(),
+        contactPerson: contactPerson.trim(),
+        email: supplierEmail.trim(),
+        phone: supplierPhone.trim(),
+        address: supplierAddress.trim(),
+        description: supplierDesc.trim(),
       });
     }
 
@@ -499,6 +535,8 @@ export const InventoryManagementView: React.FC = () => {
                   <input
                     type="tel"
                     placeholder="+63 917 888 9999"
+                    maxLength={20}
+                    title="Enter 7 to 15 digits, with optional spaces, hyphens, parentheses, or a leading +."
                     value={supplierPhone}
                     onChange={(e) => setSupplierPhone(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
@@ -925,6 +963,7 @@ export const InventoryManagementView: React.FC = () => {
                   <input
                     type="number"
                     min="1"
+                    step="0.01"
                     required
                     placeholder="12000"
                     value={balePrice}
@@ -941,6 +980,7 @@ export const InventoryManagementView: React.FC = () => {
                   <input
                     type="number"
                     min="1"
+                    step="1"
                     required
                     placeholder="100"
                     value={baleQuantity}
@@ -1358,6 +1398,7 @@ export const InventoryManagementView: React.FC = () => {
                   <input
                     type="number"
                     min="1"
+                    step="1"
                     required
                     placeholder="1"
                     value={productQty}
@@ -1374,6 +1415,7 @@ export const InventoryManagementView: React.FC = () => {
                   <input
                     type="number"
                     min="1"
+                    step="0.01"
                     required
                     placeholder="1200"
                     value={productSellingPrice}
@@ -1392,6 +1434,7 @@ export const InventoryManagementView: React.FC = () => {
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
                     placeholder="Cost per piece"
                     value={productCostPrice}
                     onChange={(e) =>

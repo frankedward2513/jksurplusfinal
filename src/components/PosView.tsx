@@ -130,6 +130,20 @@ export const PosView: React.FC = () => {
   // Confirm Transaction
   const handleConfirmTransaction = async () => {
     if (posCart.length === 0) return;
+    if (!Number.isFinite(tenderedVal) || tenderedVal < 0) {
+      setCodeMessage({
+        text: 'Enter a valid non-negative amount tendered.',
+        type: 'error',
+      });
+      return;
+    }
+    if (!Number.isFinite(discountVal) || discountVal < 0 || discountVal > rawSubtotal) {
+      setCodeMessage({
+        text: 'Discount must be between zero and the subtotal.',
+        type: 'error',
+      });
+      return;
+    }
     if (tenderedVal < totalAmountDue) {
       setCodeMessage({
         text: `Amount tendered (₱${tenderedVal}) is less than total amount due (₱${totalAmountDue})!`,
@@ -425,6 +439,8 @@ export const PosView: React.FC = () => {
                   <input
                     type="number"
                     min="0"
+                    max={rawSubtotal}
+                    step="0.01"
                     placeholder="Enter discount amount (₱)..."
                     value={discountAmount}
                     onChange={(e) =>
@@ -490,6 +506,7 @@ export const PosView: React.FC = () => {
               <input
                 type="number"
                 min="0"
+                step="0.01"
                 placeholder={totalAmountDue.toString()}
                 value={amountTendered}
                 onChange={(e) =>
