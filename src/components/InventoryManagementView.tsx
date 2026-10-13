@@ -297,7 +297,6 @@ export const InventoryManagementView: React.FC = () => {
         productLink,
         description: productDesc,
         barcode: '',
-        barcodeStatus: 'done',
       });
     }
 
@@ -493,9 +492,11 @@ export const InventoryManagementView: React.FC = () => {
                 </button>
               )}
             </div>
-
+            
+            {/* Input Fields */}
             <form onSubmit={handleSaveSupplier} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+                {/* Company Name */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Supplier / Company Name *</label>
                   <input
@@ -508,6 +509,7 @@ export const InventoryManagementView: React.FC = () => {
                   />
                 </div>
 
+                {/* Contact Person */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Contact Person</label>
                   <input
@@ -519,6 +521,7 @@ export const InventoryManagementView: React.FC = () => {
                   />
                 </div>
 
+                {/* Email Address */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Email Address</label>
                   <input
@@ -530,6 +533,7 @@ export const InventoryManagementView: React.FC = () => {
                   />
                 </div>
 
+                {/* Contact Number */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Contact Number</label>
                   <input
@@ -543,6 +547,7 @@ export const InventoryManagementView: React.FC = () => {
                   />
                 </div>
 
+                {/* Supplier Address */}
                 <div className="sm:col-span-2">
                   <label className="block font-medium text-stone-300 mb-1">Supplier Address</label>
                   <input
@@ -555,6 +560,7 @@ export const InventoryManagementView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Description */}
               <div className="text-xs">
                 <label className="block font-medium text-stone-300 mb-1">Description</label>
                 <textarea
@@ -566,13 +572,14 @@ export const InventoryManagementView: React.FC = () => {
                 />
               </div>
 
+              {/* Submit Button */}
               <button
                 type="submit"
                 className="w-full sm:w-auto py-3 px-6 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white font-bold text-xs shadow-md shadow-orange-600/30 transition cursor-pointer"
               >
                 {editingSupplierId ? 'Update Supplier' : 'Register Supplier'}
               </button>
-            </form>
+            </form> 
           </div>
 
           {/* Supplier Cards Display (Mobile-optimized responsive grid) */}

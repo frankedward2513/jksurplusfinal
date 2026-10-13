@@ -27,7 +27,6 @@ import {
   Expense,
   Order,
   OrderItem,
-  CartItem,
   Transaction,
   ItemStatusLog,
 } from '../types';
@@ -88,16 +87,6 @@ interface StoreContextType {
   transactions: Transaction[];
   itemStatusLogs: ItemStatusLog[];
 
-  // Cart
-  cart: CartItem[];
-  addToCart: (product: Product, quantity?: number) => { success: boolean; message?: string };
-  updateCartQuantity: (productId: string, quantity: number) => { success: boolean; message?: string };
-  toggleCartItemSelect: (productId: string) => void;
-  toggleSelectAllCart: (select: boolean) => void;
-  removeFromCart: (productId: string) => void;
-  clearSelectedCart: () => void;
-  cartNotification: string | null;
-  clearCartNotification: () => void;
   formAlert: string | null;
   showFormAlert: (message?: string) => void;
   clearFormAlert: () => void;
@@ -116,7 +105,6 @@ interface StoreContextType {
   addProduct: (prod: Omit<Product, 'id' | 'createdAt'>) => Promise<void>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
-  toggleProductBarcodeStatus: (id: string) => Promise<void>;
 
   // Supplier Management
   addSupplier: (supp: Omit<Supplier, 'id' | 'totalBalesSourced' | 'createdAt'>) => Promise<void>;
@@ -135,11 +123,6 @@ interface StoreContextType {
   // Transactions
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
-
-  // Orders
-  createOrder: (orderData: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'status'>) => Promise<Order>;
-  updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
-  cancelOrder: (orderId: string) => Promise<void>;
 
   // POS
   completePosSale: (params: {
@@ -212,7 +195,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [isDarkMode]);
 
-  // Auth state - default to Guest so visitors browse safely until sign in / sign up
+  // Auth state - default to Guest so visitors can browse anonymously.
   const GUEST_USER: UserProfile = {
     uid: 'guest-visitor',
     email: '',
@@ -498,14 +481,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Cart state
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('exins_cart');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [cartNotification, setCartNotification] = useState<string | null>(null);
-  const clearCartNotification = () => setCartNotification(null);
-
   const [formAlert, setFormAlert] = useState<string | null>(null);
   const showFormAlert = (message = 'You have been successfully submitted the form!') => {
     setFormAlert(message);
@@ -552,10 +527,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem('exins_item_logs', JSON.stringify(itemStatusLogs));
   }, [itemStatusLogs]);
-  useEffect(() => {
-    localStorage.setItem('exins_cart', JSON.stringify(cart));
-  }, [cart]);
-
   // Firestore real-time listeners on startup
   useEffect(() => {
 
@@ -912,137 +883,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [transactions, orders, customers, itemStatusLogs, products]);
 
-  // Ensure customer's placed orders are indexed in localStorage for fast, resilient "My Orders" lookup
-  useEffect(() => {
-    if (currentUser && !currentUser.isGuest && currentUser.role === 'customer' && orders.length > 0) {
-      try {
-        const placed: string[] = JSON.parse(localStorage.getItem('exins_placed_orders') || '[]');
-        const uEmail = (currentUser.email || '').toLowerCase().trim();
-        const uPhone = (currentUser.phone || '').replace(/\D/g, '').slice(-10);
-        const uUid = (currentUser.uid || '').trim();
-
-        let updated = false;
-        orders.forEach((o) => {
-          const matchUid = uUid && o.userId === uUid;
-          const matchEmail = uEmail && o.email && o.email.toLowerCase().trim() === uEmail;
-          const matchPhone =
-            uPhone &&
-            uPhone.length >= 7 &&
-            o.contactNumber &&
-            o.contactNumber.replace(/\D/g, '').slice(-10) === uPhone;
-
-          if ((matchUid || matchEmail || matchPhone) && !placed.includes(o.id)) {
-            placed.push(o.id);
-            updated = true;
-          }
-        });
-
-        if (updated) {
-          localStorage.setItem('exins_placed_orders', JSON.stringify(placed));
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }, [currentUser, orders]);
-
-  // Cart operations
-  const addToCart = (product: Product, quantity = 1) => {
-    if (!currentUser || currentUser.role === 'guest' || currentUser.isGuest || !currentUser.email) {
-      const msg = 'Please sign in or create an account first to add items to your shopping bag.';
-      setCartNotification(msg);
-      return { success: false, message: msg };
-    }
-
-    if (product.availableQuantity <= 0) {
-      const msg = `Sorry, ${product.name} is currently out of stock.`;
-      setCartNotification(msg);
-      return { success: false, message: msg };
-    }
-
-    const existingIndex = cart.findIndex((item) => item.productId === product.id);
-    if (existingIndex > -1) {
-      const currentQty = cart[existingIndex].quantity;
-      const newQty = currentQty + quantity;
-
-      if (newQty > product.availableQuantity) {
-        const msg = `Only ${product.availableQuantity} left in stock for ${product.name}!`;
-        setCartNotification(msg);
-        return { success: false, message: msg };
-      }
-
-      setCart((prev) =>
-        prev.map((item, idx) => (idx === existingIndex ? { ...item, quantity: newQty } : item))
-      );
-      setCartNotification(`Updated ${product.name} quantity in bag.`);
-      return { success: true };
-    } else {
-      if (quantity > product.availableQuantity) {
-        const msg = `Only ${product.availableQuantity} left in stock for ${product.name}!`;
-        setCartNotification(msg);
-        return { success: false, message: msg };
-      }
-
-      const newItem: CartItem = {
-        productId: product.id,
-        name: product.name,
-        size: product.size || 'Free Size',
-        price: product.sellingPrice,
-        costPrice: product.costPrice || 0,
-        quantity,
-        imageUrl: product.imageUrl || '',
-        maxStock: product.availableQuantity,
-        selected: true,
-        baleCode: product.baleCode,
-      };
-      setCart((prev) => [...prev, newItem]);
-      setCartNotification(`Added ${product.name} to your bag.`);
-      return { success: true };
-    }
-  };
-
-  const updateCartQuantity = (productId: string, quantity: number) => {
-    if (quantity < 1) {
-      return { success: false, message: 'Minimum quantity is 1.' };
-    }
-
-    const targetItem = cart.find((item) => item.productId === productId);
-    if (!targetItem) return { success: false };
-
-    // Check against real-time product stock
-    const realProduct = products.find((p) => p.id === productId);
-    const maxStock = realProduct ? realProduct.availableQuantity : targetItem.maxStock;
-
-    if (quantity > maxStock) {
-      const msg = `Only ${maxStock} left in stock for ${targetItem.name}!`;
-      setCartNotification(msg);
-      return { success: false, message: msg };
-    }
-
-    setCart((prev) =>
-      prev.map((item) => (item.productId === productId ? { ...item, quantity, maxStock } : item))
-    );
-    return { success: true };
-  };
-
-  const toggleCartItemSelect = (productId: string) => {
-    setCart((prev) =>
-      prev.map((item) => (item.productId === productId ? { ...item, selected: !item.selected } : item))
-    );
-  };
-
-  const toggleSelectAllCart = (select: boolean) => {
-    setCart((prev) => prev.map((item) => ({ ...item, selected: select })));
-  };
-
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.productId !== productId));
-  };
-
-  const clearSelectedCart = () => {
-    setCart((prev) => prev.filter((item) => !item.selected));
-  };
-
   // Bale Management
   const addBale = async (baleData: Omit<Bale, 'id' | 'totalSalesMade' | 'createdAt'>) => {
     const id = `bale_${Date.now()}`;
@@ -1148,13 +988,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
     }
-  };
-
-  const toggleProductBarcodeStatus = async (id: string) => {
-    const prod = products.find((p) => p.id === id);
-    if (!prod) return;
-    const newStatus = prod.barcodeStatus === 'done' ? 'new' : 'done';
-    await updateProduct(id, { barcodeStatus: newStatus });
   };
 
   // Supplier Management
@@ -1373,224 +1206,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `transactions/${id}`);
     }
-  };
-
-  // Orders creation and status management
-  const createOrder = async (
-    orderData: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'status'>
-  ): Promise<Order> => {
-    if (!currentUser || currentUser.role === 'guest' || currentUser.isGuest || !currentUser.email) {
-      throw new Error('Please sign in or create an account first to complete your purchase.');
-    }
-
-    const id = `ord_${Date.now()}`;
-    const orderNumber = `EX-${new Date().getFullYear().toString().slice(-2)}${Math.floor(
-      100000 + Math.random() * 900000
-    )}`;
-
-    const sanitizedItems: OrderItem[] = orderData.items.map((it) => ({
-      productId: it.productId,
-      name: it.name,
-      size: it.size || 'Free Size',
-      price: Number(it.price) || 0,
-      costPrice: Number(it.costPrice) || 0,
-      quantity: Number(it.quantity) || 1,
-      imageUrl: it.imageUrl || '',
-      baleCode: it.baleCode || '',
-    }));
-
-    const newOrder: Order = {
-      ...orderData,
-      id,
-      orderNumber,
-      userId: currentUser?.uid || (orderData as any).userId || '',
-      customerName: (orderData.customerName || currentUser?.displayName || 'Customer').trim(),
-      contactNumber: (orderData.contactNumber || currentUser?.phone || 'N/A').trim(),
-      email: (orderData.email || currentUser?.email || 'customer@exins.shop').trim(),
-      address: (orderData.address || currentUser?.address || 'Standard Delivery').trim(),
-      items: sanitizedItems,
-      totalAmount: Number(orderData.totalAmount) || 0,
-      paymentType: orderData.paymentType || 'pay_now',
-      downPaymentAmount: orderData.paymentType === 'down_payment' ? (orderData.downPaymentAmount || 100) : 0,
-      remainingBalance: Number(orderData.remainingBalance) || 0,
-      receiptUrl: orderData.receiptUrl || '',
-      courier: orderData.courier || 'jnt',
-      shippingNote: orderData.shippingNote || 'Customer shoulders shipping fee directly upon courier delivery.',
-      status: 'pending',
-      orderSource: 'online',
-      paymentMethod: orderData.paymentMethod || 'gcash',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Update in-memory state and localStorage immediately
-    setOrders((prev) => {
-      const updated = [newOrder, ...prev.filter((o) => o.id !== id)];
-      localStorage.setItem('exins_orders', JSON.stringify(updated));
-      return updated;
-    });
-
-    // Store order id locally so customer always sees it on this device under My Orders
-    try {
-      const placed: string[] = JSON.parse(localStorage.getItem('exins_placed_orders') || '[]');
-      if (!placed.includes(id)) {
-        placed.push(id);
-        localStorage.setItem('exins_placed_orders', JSON.stringify(placed));
-      }
-    } catch {
-      // ignore
-    }
-
-    // Ensure customer info is recorded in customers collection and state so owner sees who ordered
-    const custProfile: UserProfile = {
-      uid: newOrder.userId || `cust_${Date.now()}`,
-      email: newOrder.email,
-      displayName: newOrder.customerName,
-      phone: newOrder.contactNumber,
-      address: newOrder.address,
-      role: 'customer',
-      createdAt: new Date().toISOString(),
-    };
-    setCustomers((prev) => {
-      const idx = prev.findIndex(
-        (c) => c.uid === custProfile.uid || c.email.toLowerCase() === custProfile.email.toLowerCase()
-      );
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], phone: custProfile.phone, address: custProfile.address, displayName: custProfile.displayName };
-        return updated;
-      }
-      return [custProfile, ...prev];
-    });
-    setDoc(doc(db, 'customers', custProfile.uid), { ...cleanFirestoreData(custProfile), id: custProfile.uid }).catch(
-      console.warn
-    );
-
-    if (currentUser.role !== 'customer') {
-      // Deduct inventory quantities and credit bale sales for store-managed orders.
-      orderData.items.forEach((item) => {
-        setProducts((prev) =>
-          prev.map((p) => {
-            if (p.id === item.productId) {
-              const newQty = Math.max(0, p.availableQuantity - item.quantity);
-              updateProduct(p.id, { availableQuantity: newQty });
-              return { ...p, availableQuantity: newQty };
-            }
-            return p;
-          })
-        );
-
-        if (item.baleCode) {
-          setBales((prev) =>
-            prev.map((b) => {
-              if (b.baleCode === item.baleCode) {
-                const itemTotal = item.price * item.quantity;
-                const newSales = (b.totalSalesMade || 0) + itemTotal;
-                updateBale(b.id, { totalSalesMade: newSales });
-                return { ...b, totalSalesMade: newSales };
-              }
-              return b;
-            })
-          );
-        }
-
-        logItemStatus({
-          productId: item.productId,
-          productName: item.name,
-          type: 'sold',
-          quantity: item.quantity,
-          notes: `Order ${orderNumber}`,
-          adjustStock: false,
-        });
-      });
-    }
-
-    // Record sales inflow transaction in Finance
-    const txId = `tx_${Date.now()}`;
-    const paidAmount =
-      orderData.paymentType === 'down_payment'
-        ? orderData.downPaymentAmount || 100
-        : orderData.totalAmount;
-
-    const newTx: Transaction = {
-      id: txId,
-      date: new Date().toISOString().split('T')[0],
-      flowType: 'inflow',
-      category: 'Showcase Sales',
-      account: 'Customer Order Inflow',
-      description: `Sale from Order #${orderNumber} (${orderData.customerName || 'Customer'})`,
-      paymentMethod: orderData.paymentMethod || 'gcash',
-      inflow: paidAmount,
-      outflow: 0,
-      orderId: id,
-      createdAt: new Date().toISOString(),
-    };
-    if (currentUser.role !== 'customer') {
-      setTransactions((prev) => [newTx, ...prev]);
-    }
-
-    try {
-      await setDoc(doc(db, 'orders', id), cleanFirestoreData(newOrder));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `orders/${id}`);
-      setOrders((prev) => prev.filter((order) => order.id !== id));
-      try {
-        const placed: string[] = JSON.parse(localStorage.getItem('exins_placed_orders') || '[]');
-        localStorage.setItem('exins_placed_orders', JSON.stringify(placed.filter((orderId) => orderId !== id)));
-      } catch {
-        // ignore malformed local order index
-      }
-      throw err;
-    }
-
-    try {
-      await setDoc(doc(db, 'transactions', txId), cleanFirestoreData(newTx));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `transactions/${txId}`);
-    }
-
-    return newOrder;
-  };
-
-  const updateOrderStatus = async (orderId: string, status: Order['status']) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o))
-    );
-    try {
-      await updateDoc(doc(db, 'orders', orderId), { status, updatedAt: new Date().toISOString() });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
-    }
-  };
-
-  const cancelOrder = async (orderId: string) => {
-    const targetOrder = orders.find((o) => o.id === orderId);
-    if (!targetOrder) return;
-
-    // Restore stock
-    targetOrder.items.forEach((item) => {
-      setProducts((prev) =>
-        prev.map((p) => {
-          if (p.id === item.productId) {
-            const restored = p.availableQuantity + item.quantity;
-            updateProduct(p.id, { availableQuantity: restored });
-            return { ...p, availableQuantity: restored };
-          }
-          return p;
-        })
-      );
-      // Log as returned
-      logItemStatus({
-        productId: item.productId,
-        productName: item.name,
-        type: 'returned',
-        quantity: item.quantity,
-        notes: `Cancelled order #${targetOrder.orderNumber}`,
-        adjustStock: false,
-      });
-    });
-
-    await updateOrderStatus(orderId, 'cancelled');
   };
 
   // POS Sale Completion
@@ -1830,15 +1445,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         orders,
         transactions,
         itemStatusLogs,
-        cart,
-        addToCart,
-        updateCartQuantity,
-        toggleCartItemSelect,
-        toggleSelectAllCart,
-        removeFromCart,
-        clearSelectedCart,
-        cartNotification,
-        clearCartNotification,
         formAlert,
         showFormAlert,
         clearFormAlert,
@@ -1851,7 +1457,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addProduct,
         updateProduct,
         deleteProduct,
-        toggleProductBarcodeStatus,
         addSupplier,
         updateSupplier,
         deleteSupplier,
@@ -1862,9 +1467,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteExpense,
         addTransaction,
         deleteTransaction,
-        createOrder,
-        updateOrderStatus,
-        cancelOrder,
         completePosSale,
         logItemStatus,
         updateItemStatusLog,

@@ -7,8 +7,7 @@ import {
   DollarSign,
   TrendingUp,
   Sparkles,
-  ShoppingBag,
-  Barcode,
+  Shirt,
   Store,
   Sun,
   Moon,
@@ -19,8 +18,6 @@ import {
   Shield,
   UserCheck,
   LogIn,
-  UserPlus,
-  Clock,
 } from 'lucide-react';
 
 export type ActiveTab =
@@ -30,14 +27,12 @@ export type ActiveTab =
   | 'forecasting'
   | 'ai_chat'
   | 'showcase'
-  | 'barcode'
-  | 'pos'
-  | 'orders';
+  | 'pos';
 
 interface NavbarProps {
   activeTab: ActiveTab;
   onSelectTab: (tab: ActiveTab) => void;
-  onOpenAuth: (mode?: 'login' | 'signup') => void;
+  onOpenAuth: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -47,7 +42,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { isDarkMode, toggleDarkMode, currentUser, logout, showFormAlert } = useStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileAuthChoiceOpen, setMobileAuthChoiceOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -68,19 +62,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'finance' as ActiveTab, label: 'Finance Management', icon: DollarSign },
         { id: 'forecasting' as ActiveTab, label: 'Sales Forecast', icon: TrendingUp },
         { id: 'ai_chat' as ActiveTab, label: 'Hi Im your AI Exins', icon: Sparkles },
-        { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: ShoppingBag },
-        { id: 'orders' as ActiveTab, label: 'Online Orders', icon: Clock },
-        { id: 'barcode' as ActiveTab, label: 'Barcode Management', icon: Barcode },
+        { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
         { id: 'pos' as ActiveTab, label: 'POS', icon: Store },
       ];
     } else if (currentUser.role === 'staff') {
       return [
         { id: 'pos' as ActiveTab, label: 'POS', icon: Store },
         { id: 'inventory' as ActiveTab, label: 'Inventory Management', icon: Boxes },
-        { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: ShoppingBag },
+        { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
       ];
     } else {
-      return [{ id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: ShoppingBag }];
+      return [{ id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt }];
     }
   };
 
@@ -150,110 +142,36 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Role & Account Button - Dedicated Sign In & Sign Up for all screens */}
+            {/* Staff and owner sign-in remains available; customers can browse without an account. */}
             <div className="flex items-center gap-1 sm:gap-2">
               {currentUser.role === 'guest' || currentUser.isGuest || !currentUser.email ? (
                 <>
-                  {/* Desktop view (sm and up): Two separate buttons */}
                   <div className="hidden sm:flex items-center gap-1.5">
                     <button
-                      onClick={() => onOpenAuth('login')}
+                      onClick={onOpenAuth}
                       className="py-1.5 px-3 rounded-xl border border-orange-500/30 hover:border-orange-500 bg-stone-900/80 hover:bg-stone-800 text-stone-200 hover:text-white font-semibold text-xs transition cursor-pointer whitespace-nowrap"
                     >
-                      <span>Sign In</span>
-                    </button>
-                    <button
-                      onClick={() => onOpenAuth('signup')}
-                      className="py-1.5 px-3.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white font-bold text-xs shadow-md shadow-orange-600/30 transition cursor-pointer whitespace-nowrap"
-                    >
-                      <span>Sign Up</span>
+                      <span>Staff / Owner Sign In</span>
                     </button>
                   </div>
 
-                  {/* Mobile view (< sm): ONE icon only - click to choose Sign In or Sign Up */}
+                  {/* Mobile sign-in access for store staff and owners */}
                   <div className="relative sm:hidden">
                     <button
                       type="button"
-                      onClick={() => setMobileAuthChoiceOpen((prev) => !prev)}
-                      title="Account: Sign In or Sign Up"
-                      aria-label="Account: Sign In or Sign Up"
-                      className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center shrink-0 ${
-                        mobileAuthChoiceOpen
-                          ? 'bg-orange-600 text-white border-orange-400 shadow-md shadow-orange-600/30'
-                          : 'bg-stone-900/90 border-orange-500/40 text-orange-400 hover:border-orange-400 hover:text-white'
-                      }`}
+                      onClick={onOpenAuth}
+                      title="Staff / Owner Sign In"
+                      aria-label="Staff / Owner Sign In"
+                      className="p-2 rounded-xl border border-orange-500/40 bg-stone-900/90 text-orange-400 transition hover:border-orange-400 hover:text-white"
                     >
-                      <User className="w-4 h-4" />
+                      <LogIn className="w-4 h-4" />
                     </button>
-
-                    {/* Popover Menu to choose Sign Up or Sign In */}
-                    {mobileAuthChoiceOpen && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs"
-                          onClick={() => setMobileAuthChoiceOpen(false)}
-                        />
-                        <div className="absolute right-0 top-full mt-2 w-64 p-3 rounded-2xl bg-stone-950 border border-orange-500/40 shadow-2xl z-50 animate-fade-in space-y-2">
-                          <div className="flex items-center justify-between pb-2 border-b border-stone-800">
-                            <div>
-                              <p className="text-xs font-bold text-white">Account Access</p>
-                              <p className="text-[10px] text-stone-400">Choose Sign In or Sign Up</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setMobileAuthChoiceOpen(false)}
-                              className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          <div className="space-y-1.5 pt-1">
-                            {/* Option 1: Sign In */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMobileAuthChoiceOpen(false);
-                                onOpenAuth('login');
-                              }}
-                              className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border border-stone-800 hover:border-orange-500/50 bg-stone-900 hover:bg-stone-850 text-left transition cursor-pointer active:scale-98"
-                            >
-                              <div className="p-2 rounded-xl bg-stone-800 text-orange-400 border border-orange-500/20 shrink-0">
-                                <LogIn className="w-4 h-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-white">Sign In</p>
-                                <p className="text-[10px] text-stone-400 truncate">Existing account login</p>
-                              </div>
-                            </button>
-
-                            {/* Option 2: Sign Up */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMobileAuthChoiceOpen(false);
-                                onOpenAuth('signup');
-                              }}
-                              className="w-full flex items-center gap-2.5 p-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white text-left shadow-md shadow-orange-600/30 transition cursor-pointer active:scale-98"
-                            >
-                              <div className="p-2 rounded-xl bg-white/20 text-white shrink-0">
-                                <UserPlus className="w-4 h-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-white">Sign Up</p>
-                                <p className="text-[10px] text-amber-100 truncate">Create customer account</p>
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
                   </div>
                 </>
               ) : (
                 <>
                   <button
-                    onClick={() => (currentUser.role === 'customer' ? onSelectTab('showcase') : onOpenAuth('login'))}
+                    onClick={() => (currentUser.role === 'customer' ? onSelectTab('showcase') : onOpenAuth())}
                     className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-2 rounded-xl bg-stone-900/80 border border-orange-500/20 hover:border-orange-500/50 transition cursor-pointer"
                   >
                     <div className="p-1 rounded-lg bg-orange-500/20 text-orange-400">
@@ -333,28 +251,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div>
                     <p className="text-xs font-bold text-white">Welcome to JKsur+ Novaliches QC</p>
                     <p className="text-[11px] text-stone-400">
-                      Sign in or create an account to shop the online showcase
+                      Browse clothing and product details without signing in.
                     </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        onOpenAuth('login');
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full text-xs font-semibold py-2 px-3 rounded-xl border border-orange-500/40 bg-stone-900 hover:bg-stone-800 text-stone-200 hover:text-white text-center transition"
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      onClick={() => {
-                        onOpenAuth('signup');
-                        setMobileMenuOpen(false);
-                      }}
-                      className="w-full text-xs font-bold py-2 px-3 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white text-center shadow-md transition"
-                    >
-                      Create Account
-                    </button>
                   </div>
                 </div>
               ) : (

@@ -6,7 +6,6 @@ import { ShowcaseShopView } from './components/ShowcaseShopView';
 import { InventoryManagementView } from './components/InventoryManagementView';
 import { FinanceManagementView } from './components/FinanceManagementView';
 import { ForecastingView } from './components/ForecastingView';
-import { BarcodeView } from './components/BarcodeView';
 import { PosView } from './components/PosView';
 import { AiChatbotView } from './components/AiChatbotView';
 import { AuthModal } from './components/AuthModal';
@@ -22,18 +21,9 @@ const MainLayout: React.FC = () => {
     return 'showcase';
   });
 
-  const [authModalState, setAuthModalState] = useState<{
-    isOpen: boolean;
-    initialTab: 'login' | 'signup';
-  }>({
-    isOpen: false,
-    initialTab: 'signup',
-  });
-  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  const handleOpenAuth = (mode: 'login' | 'signup' = 'signup') => {
-    setAuthModalState({ isOpen: true, initialTab: mode });
-  };
+  const handleOpenAuth = () => setIsAuthModalOpen(true);
 
   // Automatically direct to role-specific default view when role switches
   useEffect(() => {
@@ -98,16 +88,7 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'ai_chat' && currentUser.role === 'owner' && <AiChatbotView />}
 
-          {activeTab === 'barcode' && currentUser.role === 'owner' && <BarcodeView />}
-
-          {(activeTab === 'showcase' || (activeTab === 'orders' && currentUser.role === 'owner')) && (
-            <ShowcaseShopView
-              isCartOpen={cartDrawerOpen}
-              setIsCartOpen={setCartDrawerOpen}
-              onOpenAuth={handleOpenAuth}
-              initialMode={activeTab === 'orders' ? 'orders' : 'browse'}
-            />
-          )}
+          {activeTab === 'showcase' && <ShowcaseShopView />}
 
           {activeTab === 'pos' &&
             (currentUser.role === 'owner' || currentUser.role === 'staff') && <PosView />}
@@ -118,9 +99,8 @@ const MainLayout: React.FC = () => {
 
         {/* Auth Modal */}
         <AuthModal
-          isOpen={authModalState.isOpen}
-          initialTab={authModalState.initialTab}
-          onClose={() => setAuthModalState((prev) => ({ ...prev, isOpen: false }))}
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
         />
       </div>
     </div>

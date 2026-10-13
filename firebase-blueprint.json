@@ -50,7 +50,6 @@
         "productLink": { "type": "string", "maxLength": 512 },
         "description": { "type": "string", "maxLength": 1000 },
         "barcode": { "type": "string", "maxLength": 64 },
-        "barcodeStatus": { "type": "string", "enum": ["new", "done"] },
         "createdAt": { "type": "string" }
       },
       "required": ["name", "sellingPrice", "availableQuantity"]

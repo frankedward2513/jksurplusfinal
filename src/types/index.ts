@@ -51,7 +51,6 @@ export interface Product {
   productLink: string;
   description: string;
   barcode: string;
-  barcodeStatus: 'new' | 'done';
   createdAt: string;
 }
 
@@ -87,19 +86,6 @@ export interface Expense {
   receiptUrl?: string;
   description: string;
   createdAt: string;
-}
-
-export interface CartItem {
-  productId: string;
-  name: string;
-  size: string;
-  price: number;
-  costPrice: number;
-  quantity: number;
-  imageUrl: string;
-  maxStock: number;
-  selected: boolean;
-  baleCode?: string;
 }
 
 export interface OrderItem {

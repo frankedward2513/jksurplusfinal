@@ -5,7 +5,6 @@ import {
   DollarSign,
   TrendingUp,
   TrendingDown,
-  ShoppingBag,
   Package,
   Layers,
   Percent,
@@ -63,10 +62,7 @@ export const DashboardView: React.FC = () => {
 
   // 6 KPIs Calculations
   const kpis = useMemo(() => {
-    // 1. New Orders
-    const newOrders = filteredData.orders.length;
-
-    // 2. Total Sales (Inflows from transactions; fallback to orders if no transactions exist)
+    // 1. Total Sales (Inflows from transactions; fallback to orders if no transactions exist)
     const totalSalesFromTx = filteredData.transactions
       .filter((t) => t.flowType === 'inflow')
       .reduce((sum, t) => sum + (t.inflow || 0), 0);
@@ -77,7 +73,7 @@ export const DashboardView: React.FC = () => {
 
     const totalSales = transactions.length > 0 ? totalSalesFromTx : totalSalesFromOrders;
 
-    // 3. Total Expenses (Outflows from transactions; fallback to expenses list if no transactions exist)
+    // 2. Total Expenses (Outflows from transactions; fallback to expenses list if no transactions exist)
     const totalExpensesFromTx = filteredData.transactions
       .filter((t) => t.flowType === 'outflow')
       .reduce((sum, t) => sum + (t.outflow || 0), 0);
@@ -85,7 +81,7 @@ export const DashboardView: React.FC = () => {
     const totalExpensesFromList = filteredData.expenses.reduce((sum, e) => sum + e.amount, 0);
     const totalExpenses = transactions.length > 0 ? totalExpensesFromTx : totalExpensesFromList;
 
-    // 4. Gross Profit (Sales - Cost of Goods Sold)
+    // 3. Gross Profit (Sales - Cost of Goods Sold)
     let cogs = 0;
     filteredData.orders
       .filter((o) => o.status !== 'cancelled')
@@ -96,17 +92,16 @@ export const DashboardView: React.FC = () => {
       });
     const grossProfit = Math.max(0, totalSales - cogs);
 
-    // 5. Net Profit (Gross Profit - Total Expenses or Sales - Expenses)
+    // 4. Net Profit (Gross Profit - Total Expenses or Sales - Expenses)
     const netProfit = totalSales - totalExpenses;
 
-    // 6. Remaining Assets (Inventory remaining stock value)
+    // 5. Remaining Assets (Inventory remaining stock value)
     const remainingAssets = products.reduce(
       (sum, p) => sum + p.availableQuantity * (p.costPrice || p.sellingPrice * 0.5),
       0
     );
 
     return {
-      newOrders,
       totalSales,
       totalExpenses,
       grossProfit,
@@ -289,21 +284,8 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* 6 Key Performance Indicators (KPI Cards - 2 cols on mobile for balanced aesthetic) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-4">
-        {/* New Orders */}
-        <div className="p-3.5 sm:p-5 rounded-2xl glass-panel glass-panel-hover relative overflow-hidden group">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-400 truncate">New Orders</span>
-            <div className="p-1.5 sm:p-2 rounded-xl bg-orange-500/20 text-orange-400 group-hover:scale-110 transition">
-              <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-white">{kpis.newOrders}</div>
-          <p className="text-[10px] sm:text-[11px] text-stone-400 mt-1 truncate">Customer orders</p>
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-amber-500 opacity-60" />
-        </div>
-
+      {/* 5 Key Performance Indicators (KPI Cards - 2 cols on mobile for balanced aesthetic) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-4">
         {/* Total Sales */}
         <div className="p-3.5 sm:p-5 rounded-2xl glass-panel glass-panel-hover relative overflow-hidden group">
           <div className="flex items-center justify-between mb-2">
