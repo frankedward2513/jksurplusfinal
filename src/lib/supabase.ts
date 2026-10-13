@@ -1,12 +1,22 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = (
+  import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL
+)?.trim();
+const supabasePublishableKey = (
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)?.trim();
 
-export const supabase: SupabaseClient = createClient(
-  supabaseUrl || 'http://127.0.0.1:54321',
-  supabaseAnonKey || 'public-anon-key'
-);
+if (!supabaseUrl || !supabasePublishableKey) {
+  throw new Error(
+    'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in the Vercel project environment, then redeploy.'
+  );
+}
+
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabasePublishableKey);
 
 export const db = null;
 
@@ -180,11 +190,23 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): void {
+  let errorMessage: string;
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  } else if (typeof error === 'object' && error !== null && 'message' in error) {
+    const detail = 'details' in error && typeof error.details === 'string' ? error.details : '';
+    const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+    const message = typeof error.message === 'string' ? error.message : String(error.message);
+    errorMessage = [code, message, detail].filter(Boolean).join(': ');
+  } else {
+    errorMessage = String(error);
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage,
     authInfo: {},
     operationType,
     path,
   };
-  console.warn('Supabase Operation Notice:', JSON.stringify(errInfo));
+  console.error('Supabase operation failed:', JSON.stringify(errInfo));
 }

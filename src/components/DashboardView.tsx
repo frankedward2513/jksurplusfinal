@@ -9,6 +9,7 @@ import {
   Layers,
   Percent,
   Filter,
+  Users,
 } from 'lucide-react';
 
 type DateFilterPreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'custom';
@@ -62,6 +63,13 @@ export const DashboardView: React.FC = () => {
 
   // 6 KPIs Calculations
   const kpis = useMemo(() => {
+    const posCustomerNames = new Set(
+      orders
+        .filter((order) => order.orderSource === 'pos' && order.status !== 'cancelled')
+        .map((order) => (order.customerName || '').trim().replace(/\s+/g, ' ').toLowerCase())
+        .filter((name) => name && !['walk-in', 'walk in', 'walk-in customer', 'walk in customer'].includes(name)),
+    );
+
     // 1. Total Sales (Inflows from transactions; fallback to orders if no transactions exist)
     const totalSalesFromTx = filteredData.transactions
       .filter((t) => t.flowType === 'inflow')
@@ -102,13 +110,14 @@ export const DashboardView: React.FC = () => {
     );
 
     return {
+      totalCustomers: posCustomerNames.size,
       totalSales,
       totalExpenses,
       grossProfit,
       netProfit,
       remainingAssets,
     };
-  }, [filteredData, products]);
+  }, [filteredData, products, orders]);
 
   // Monthly performance breakdown data
   const monthlyBreakdown = useMemo(() => {
@@ -284,8 +293,23 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5 Key Performance Indicators (KPI Cards - 2 cols on mobile for balanced aesthetic) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-4">
+      {/* 6 Key Performance Indicators (KPI Cards - 2 cols on mobile for balanced aesthetic) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-4">
+        {/* Unique POS Customers */}
+        <div className="p-3.5 sm:p-5 rounded-2xl glass-panel glass-panel-hover relative overflow-hidden group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-400 truncate">
+              Total Customers
+            </span>
+            <div className="p-1.5 sm:p-2 rounded-xl bg-blue-500/20 text-blue-400 group-hover:scale-110 transition">
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-blue-300">{kpis.totalCustomers}</div>
+          <p className="text-[10px] sm:text-[11px] text-stone-400 mt-1 truncate">Unique names on POS sales</p>
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-500 opacity-60" />
+        </div>
+
         {/* Total Sales */}
         <div className="p-3.5 sm:p-5 rounded-2xl glass-panel glass-panel-hover relative overflow-hidden group">
           <div className="flex items-center justify-between mb-2">
