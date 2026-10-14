@@ -42,7 +42,6 @@ create table if not exists public.products (
   product_link text not null default '',
   description text not null default '',
   barcode text not null default '',
-  barcode_status text not null default 'new' check (barcode_status in ('new', 'done')),
   created_at timestamptz not null default now()
 );
 
@@ -83,21 +82,10 @@ create table if not exists public.expenses (
 create table if not exists public.orders (
   id text primary key,
   order_number text not null,
-  user_id text,
   customer_name text not null default '',
-  contact_number text not null default '',
-  email text not null default '',
-  address text not null default '',
   items jsonb not null default '[]'::jsonb,
   total_amount numeric not null default 0,
-  payment_type text not null default 'pay_now' check (payment_type in ('pay_now', 'down_payment')),
-  down_payment_amount numeric not null default 0,
-  remaining_balance numeric not null default 0,
-  receipt_url text not null default '',
-  courier text,
-  shipping_note text,
   status text not null check (status in ('pending', 'preparing', 'dropped_to_courier', 'completed', 'cancelled')),
-  order_source text not null default 'online' check (order_source in ('online', 'pos')),
   discount numeric not null default 0,
   amount_tendered numeric,
   change_amount numeric,
@@ -123,15 +111,8 @@ create table if not exists public.transactions (
 
 create table if not exists public.customers (
   id text primary key,
-  uid text not null unique,
-  display_name text not null,
-  email text not null,
-  phone text,
-  address text,
-  role text not null default 'customer' check (role in ('customer', 'staff', 'owner')),
-  provider text,
-  is_guest boolean not null default false,
-  created_at timestamptz not null default now()
+  customer_name text not null,
+  total_purchase numeric not null default 0
 );
 
 create table if not exists public.item_logs (
@@ -162,13 +143,14 @@ create table if not exists public.users (
   created_at timestamptz not null default now()
 );
 
+-- Barcode Management was removed; keep the scanner barcode but drop its obsolete status field.
+alter table public.products drop column if exists barcode_status;
+
 create index if not exists idx_bales_supplier_id on public.bales (supplier_id);
 create index if not exists idx_products_category on public.products (category);
 create index if not exists idx_expenses_account_id on public.expenses (account_id);
-create index if not exists idx_orders_user_id on public.orders (user_id);
 create index if not exists idx_orders_status on public.orders (status);
 create index if not exists idx_transactions_date on public.transactions (date);
-create index if not exists idx_customers_email on public.customers (email);
 create index if not exists idx_item_logs_product_id on public.item_logs (product_id);
 
 alter table public.bales enable row level security;
@@ -659,6 +641,162 @@ begin
   end loop;
 end $$;
 
+-- These fields belonged to the removed online checkout flow. Existing values in
+-- these columns are intentionally discarded; POS order rows and sales remain.
+drop index if exists public.idx_orders_user_id;
+alter table public.orders drop column if exists user_id;
+alter table public.orders drop column if exists contact_number;
+alter table public.orders drop column if exists email;
+alter table public.orders drop column if exists address;
+alter table public.orders drop column if exists payment_type;
+alter table public.orders drop column if exists down_payment_amount;
+alter table public.orders drop column if exists remaining_balance;
+alter table public.orders drop column if exists receipt_url;
+alter table public.orders drop column if exists courier;
+alter table public.orders drop column if exists shipping_note;
+
+-- Replace customer login profiles with one POS purchase summary per normalized name.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'customers'
+      and column_name = 'uid'
+  ) then
+    delete from public.customers;
+  end if;
+end $$;
+
+drop index if exists public.idx_customers_email;
+alter table public.customers add column if not exists customer_name text;
+alter table public.customers add column if not exists total_purchase numeric not null default 0;
+alter table public.customers drop column if exists uid;
+alter table public.customers drop column if exists display_name;
+alter table public.customers drop column if exists email;
+alter table public.customers drop column if exists phone;
+alter table public.customers drop column if exists address;
+alter table public.customers drop column if exists role;
+alter table public.customers drop column if exists provider;
+alter table public.customers drop column if exists is_guest;
+alter table public.customers drop column if exists created_at;
+alter table public.customers alter column customer_name set not null;
+
+do $$
+declare
+  source_filter text := '';
+  source_column_exists boolean;
+begin
+  select exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'orders'
+      and column_name = 'order_source'
+  ) into source_column_exists;
+
+  if source_column_exists then
+    delete from public.customers;
+    source_filter := 'and order_source = ''pos''';
+    execute format($query$
+      insert into public.customers (id, customer_name, total_purchase)
+      select
+        normalized_name,
+        min(display_name),
+        sum(total_amount)
+      from (
+        select
+          regexp_replace(lower(btrim(customer_name)), '\s+', ' ', 'g') as normalized_name,
+          btrim(customer_name) as display_name,
+          total_amount
+        from public.orders
+        where status <> 'cancelled'
+          and btrim(coalesce(customer_name, '')) <> ''
+          and regexp_replace(lower(btrim(customer_name)), '\s+', ' ', 'g')
+            not in ('walk-in', 'walk in', 'walk-in customer', 'walk in customer')
+          %s
+      ) named_sales
+      group by normalized_name
+      on conflict (id) do update
+      set customer_name = excluded.customer_name,
+          total_purchase = excluded.total_purchase
+    $query$, source_filter);
+  end if;
+end $$;
+
+alter table public.orders drop column if exists order_source;
+
+create or replace function public.exins_sync_customer_purchase()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  old_key text;
+  new_key text;
+  new_name text;
+  old_amount numeric := 0;
+  new_amount numeric := 0;
+begin
+  if tg_op <> 'INSERT' then
+    old_key := nullif(regexp_replace(lower(btrim(coalesce(old.customer_name, ''))), '\s+', ' ', 'g'), '');
+    if old_key in ('walk-in', 'walk in', 'walk-in customer', 'walk in customer') then
+      old_key := null;
+    end if;
+    if old_key is not null and old.status <> 'cancelled' then
+      old_amount := old.total_amount;
+    end if;
+  end if;
+
+  if tg_op <> 'DELETE' then
+    new_name := nullif(btrim(new.customer_name), '');
+    new_key := nullif(regexp_replace(lower(btrim(coalesce(new.customer_name, ''))), '\s+', ' ', 'g'), '');
+    if new_key in ('walk-in', 'walk in', 'walk-in customer', 'walk in customer') then
+      new_key := null;
+    end if;
+    if new_key is not null and new.status <> 'cancelled' then
+      new_amount := new.total_amount;
+    end if;
+  end if;
+
+  if old_key is not distinct from new_key and new_key is not null then
+    insert into public.customers (id, customer_name, total_purchase)
+    values (new_key, new_name, new_amount - old_amount)
+    on conflict (id) do update
+    set customer_name = excluded.customer_name,
+        total_purchase = public.customers.total_purchase + excluded.total_purchase;
+    delete from public.customers where id = new_key and total_purchase <= 0;
+  else
+    if old_key is not null and old_amount <> 0 then
+      update public.customers
+      set total_purchase = greatest(0, total_purchase - old_amount)
+      where id = old_key;
+      delete from public.customers where id = old_key and total_purchase <= 0;
+    end if;
+    if new_key is not null and new_amount > 0 then
+      insert into public.customers (id, customer_name, total_purchase)
+      values (new_key, new_name, new_amount)
+      on conflict (id) do update
+      set customer_name = excluded.customer_name,
+          total_purchase = public.customers.total_purchase + excluded.total_purchase;
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.exins_sync_customer_purchase() from public, anon, authenticated;
+drop trigger if exists exins_sync_customer_purchase on public.orders;
+create trigger exins_sync_customer_purchase
+  after insert or update or delete on public.orders
+  for each row execute function public.exins_sync_customer_purchase();
+
 create policy "Store staff manage bales"
   on public.bales for all to authenticated
   using (public.exins_current_role() in ('owner', 'staff'))
@@ -694,40 +832,14 @@ create policy "Owner manage expenses"
 
 create policy "Role-scoped read orders"
   on public.orders for select to authenticated
-  using (
-    public.exins_current_role() = 'owner'
-    or (public.exins_current_role() = 'staff' and order_source = 'pos')
-    or (
-      public.exins_current_role() in ('customer', 'staff')
-      and user_id = (select auth.uid())::text
-      and order_source = 'online'
-    )
-  );
+  using (public.exins_current_role() in ('owner', 'staff'));
 create policy "Role-scoped create orders"
   on public.orders for insert to authenticated
-  with check (
-    public.exins_current_role() = 'owner'
-    or (
-      public.exins_current_role() = 'staff'
-      and order_source = 'pos'
-    )
-    or (
-      public.exins_current_role() in ('customer', 'staff')
-      and user_id = (select auth.uid())::text
-      and order_source = 'online'
-      and status = 'pending'
-    )
-  );
+  with check (public.exins_current_role() in ('owner', 'staff'));
 create policy "Role-scoped update orders"
   on public.orders for update to authenticated
-  using (
-    public.exins_current_role() = 'owner'
-    or (public.exins_current_role() = 'staff' and order_source = 'pos')
-  )
-  with check (
-    public.exins_current_role() = 'owner'
-    or (public.exins_current_role() = 'staff' and order_source = 'pos')
-  );
+  using (public.exins_current_role() in ('owner', 'staff'))
+  with check (public.exins_current_role() in ('owner', 'staff'));
 create policy "Owner delete orders"
   on public.orders for delete to authenticated
   using (public.exins_current_role() = 'owner');
@@ -745,22 +857,6 @@ create policy "Role-scoped create transactions"
       and exists (
         select 1 from public.orders o
         where o.id = transactions.order_id
-          and o.order_source = 'pos'
-      )
-    )
-    or (
-      public.exins_current_role() in ('customer', 'staff')
-      and flow_type = 'inflow'
-      and category = 'Showcase Sales'
-      and exists (
-        select 1 from public.orders o
-        where o.id = transactions.order_id
-          and o.user_id = (select auth.uid())::text
-          and o.order_source = 'online'
-          and transactions.inflow = case
-            when o.payment_type = 'down_payment' then o.down_payment_amount
-            else o.total_amount
-          end
       )
     )
   );
@@ -772,23 +868,9 @@ create policy "Owner delete transactions"
   on public.transactions for delete to authenticated
   using (public.exins_current_role() = 'owner');
 
-create policy "Role-scoped read customers"
+create policy "Store staff read customer purchase totals"
   on public.customers for select to authenticated
-  using (public.exins_current_role() = 'owner' or uid = (select auth.uid())::text);
-create policy "Customers create own profile"
-  on public.customers for insert to authenticated
-  with check (
-    uid = (select auth.uid())::text
-    and role = 'customer'
-  );
-create policy "Customers update own profile"
-  on public.customers for update to authenticated
-  using (uid = (select auth.uid())::text and role = 'customer')
-  with check (uid = (select auth.uid())::text and role = 'customer');
-create policy "Owner manage customers"
-  on public.customers for all to authenticated
-  using (public.exins_current_role() = 'owner')
-  with check (public.exins_current_role() = 'owner');
+  using (public.exins_current_role() in ('owner', 'staff'));
 
 create policy "Store staff manage item logs"
   on public.item_logs for all to authenticated
@@ -798,65 +880,32 @@ create policy "Store staff manage item logs"
 create policy "Role-scoped read users"
   on public.users for select to authenticated
   using (public.exins_current_role() = 'owner' or uid = (select auth.uid())::text);
-create policy "Customers create own user record"
-  on public.users for insert to authenticated
-  with check (
-    uid = (select auth.uid())::text
-    and role = 'customer'
-  );
-create policy "Customers update own user record"
-  on public.users for update to authenticated
-  using (uid = (select auth.uid())::text and role = 'customer')
-  with check (uid = (select auth.uid())::text and role = 'customer');
 create policy "Owner manage users"
   on public.users for all to authenticated
   using (public.exins_current_role() = 'owner')
   with check (public.exins_current_role() = 'owner');
 
-create or replace function public.exins_reserve_customer_order_stock()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  item jsonb;
-  requested_quantity numeric;
-  requested_product_id text;
-begin
-  if public.exins_current_role() <> 'customer' then
-    return new;
-  end if;
-
-  if jsonb_typeof(new.items) <> 'array' then
-    raise exception 'Order items must be an array.';
-  end if;
-
-  for item in select value from jsonb_array_elements(new.items)
-  loop
-    requested_product_id := item ->> 'productId';
-    requested_quantity := nullif(item ->> 'quantity', '')::numeric;
-    if requested_product_id is null or requested_quantity is null or requested_quantity <= 0 then
-      raise exception 'Order item has an invalid product or quantity.';
-    end if;
-
-    update public.products
-    set available_quantity = available_quantity - requested_quantity
-    where id = requested_product_id
-      and available_quantity >= requested_quantity;
-
-    if not found then
-      raise exception 'Insufficient stock for product %.', requested_product_id;
-    end if;
-  end loop;
-
-  return new;
-end;
-$$;
-
-revoke all on function public.exins_reserve_customer_order_stock() from public, anon, authenticated;
-
 drop trigger if exists exins_reserve_customer_order_stock on public.orders;
-create trigger exins_reserve_customer_order_stock
-  before insert on public.orders
-  for each row execute function public.exins_reserve_customer_order_stock();
+drop function if exists public.exins_reserve_customer_order_stock();
+
+-- The app currently stores these links as IDs, labels, or JSON values rather than
+-- declared foreign keys. Inspect enforced foreign keys in this schema with:
+select
+  tc.table_name as table_name,
+  kcu.column_name as column_name,
+  ccu.table_name as referenced_table,
+  ccu.column_name as referenced_column,
+  rc.delete_rule as on_delete
+from information_schema.table_constraints tc
+join information_schema.key_column_usage kcu
+  on tc.constraint_name = kcu.constraint_name
+  and tc.constraint_schema = kcu.constraint_schema
+join information_schema.constraint_column_usage ccu
+  on ccu.constraint_name = tc.constraint_name
+  and ccu.constraint_schema = tc.constraint_schema
+join information_schema.referential_constraints rc
+  on rc.constraint_name = tc.constraint_name
+  and rc.constraint_schema = tc.constraint_schema
+where tc.constraint_type = 'FOREIGN KEY'
+  and tc.constraint_schema = 'public'
+order by tc.table_name, kcu.ordinal_position;

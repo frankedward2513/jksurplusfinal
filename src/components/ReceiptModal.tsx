@@ -1,6 +1,6 @@
 import React from 'react';
 import { Order } from '../types';
-import { Printer, X, CheckCircle, Package } from 'lucide-react';
+import { Printer, X, CheckCircle } from 'lucide-react';
 
 interface ReceiptModalProps {
   order: Order | null;
@@ -13,8 +13,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
   const handlePrint = () => {
     window.print();
   };
-
-  const isPos = order.orderSource === 'pos';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
@@ -57,22 +55,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
             <div className="flex justify-between">
               <span className="text-stone-400">Customer:</span>
               <span className="font-medium">{order.customerName || 'Customer'}</span>
-            </div>
-            {order.contactNumber && order.contactNumber !== 'N/A' && (
-              <div className="flex justify-between">
-                <span className="text-stone-400">Contact:</span>
-                <span>{order.contactNumber}</span>
-              </div>
-            )}
-            {order.courier && (
-              <div className="flex justify-between">
-                <span className="text-stone-400">Courier:</span>
-                <span className="uppercase font-bold text-orange-400">{order.courier}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-stone-400">Channel / Type:</span>
-              <span className="uppercase">{isPos ? 'In-Store POS' : 'Online Showcase'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-stone-400">Status:</span>
@@ -117,19 +99,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
               <span className="text-orange-400 text-base">₱{order.totalAmount.toLocaleString()}</span>
             </div>
 
-            {order.paymentType === 'down_payment' ? (
-              <>
-                <div className="flex justify-between text-stone-300">
-                  <span>Down Payment Paid:</span>
-                  <span className="text-emerald-400 font-semibold">₱{order.downPaymentAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-amber-300 font-semibold">
-                  <span>Remaining Balance:</span>
-                  <span>₱{order.remainingBalance.toLocaleString()}</span>
-                </div>
-              </>
-            ) : null}
-
             {order.amountTendered !== undefined && order.amountTendered > 0 && (
               <>
                 <div className="flex justify-between text-stone-300">
@@ -145,19 +114,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
 
             <div className="flex justify-between text-[11px] text-stone-400 pt-1">
               <span>Payment Mode:</span>
-              <span className="uppercase">{order.paymentMethod || (order.paymentType === 'down_payment' ? 'Down Payment (GCash)' : 'Full Payment')}</span>
+              <span className="uppercase">{order.paymentMethod || 'N/A'}</span>
             </div>
           </div>
-
-          {/* Shipping note if online */}
-          {!isPos && (
-            <div className="bg-amber-950/40 p-2.5 rounded-lg border border-orange-500/20 text-[11px] text-stone-300 flex items-start gap-2">
-              <Package className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
-              <span>
-                <strong>Shipping Reminder:</strong> Shipping fee is paid directly by the customer to the courier upon delivery ({order.courier?.toUpperCase() || 'LBC/LALAMOVE/J&T'}).
-              </span>
-            </div>
-          )}
 
           {/* Barcode representation */}
           <div className="text-center pt-2 space-y-1">

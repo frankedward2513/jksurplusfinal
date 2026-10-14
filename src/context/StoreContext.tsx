@@ -27,6 +27,7 @@ import {
   Expense,
   Order,
   OrderItem,
+  CustomerSummary,
   Transaction,
   ItemStatusLog,
 } from '../types';
@@ -56,7 +57,7 @@ interface StoreContextType {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   currentUser: UserProfile;
-  customers: UserProfile[];
+  customers: CustomerSummary[];
   loginAs: (email: string, password?: string) => Promise<boolean>;
   resendSignupConfirmation: (email: string) => Promise<void>;
   signupAs: (
@@ -127,6 +128,7 @@ interface StoreContextType {
   // POS
   completePosSale: (params: {
     items: { product: Product; quantity: number }[];
+    date: string;
     customerName?: string;
     discount: number;
     paymentMethod: 'cash' | 'gcash';
@@ -152,6 +154,23 @@ interface StoreContextType {
     }
   ) => Promise<void>;
   deleteItemStatusLog: (id: string) => Promise<void>;
+}
+
+function normalizeOrder(order: Order): Order {
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    customerName: order.customerName || 'Walk-in Customer',
+    items: Array.isArray(order.items) ? order.items : [],
+    totalAmount: Number(order.totalAmount) || 0,
+    status: order.status || 'completed',
+    discount: Number(order.discount) || 0,
+    amountTendered: order.amountTendered,
+    changeAmount: order.changeAmount,
+    paymentMethod: order.paymentMethod,
+    createdAt: order.createdAt || new Date().toISOString(),
+    updatedAt: order.updatedAt,
+  };
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -349,13 +368,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!requiresEmailConfirmation) {
       setCurrentUser(customerUser);
       localStorage.setItem('exins_user', JSON.stringify(customerUser));
-      setCustomers((prev) => [customerUser, ...prev.filter((c) => c.uid !== customerUser.uid)]);
 
       try {
-        await setDoc(doc(db, 'customers', customerUser.uid), { ...cleanFirestoreData(customerUser), id: customerUser.uid });
         await setDoc(doc(db, 'users', customerUser.uid), { ...cleanFirestoreData(customerUser), id: customerUser.uid });
       } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `customers/${customerUser.uid}`);
+        handleFirestoreError(err, OperationType.CREATE, `users/${customerUser.uid}`);
       }
     }
 
@@ -375,29 +392,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Admin and staff accounts must sign in with their email and password.');
       }
 
-      // Check if existing customer profile already has phone and address
-      const existing = customers.find((c) => c.email.toLowerCase() === email || c.uid === uid);
-      if (existing && existing.phone && existing.address) {
-        const fullCustomer: UserProfile = {
-          ...existing,
-          uid,
-          email,
-          role: 'customer',
-          provider: 'google',
-          isGuest: false,
-        };
-        setCurrentUser(fullCustomer);
-        localStorage.setItem('exins_user', JSON.stringify(fullCustomer));
-        return { needsDetails: false, userProfile: fullCustomer };
-      }
-
-      // If missing phone or address, prompt for full name, phone and delivery address
       return {
         needsDetails: true,
         googleUser: {
           uid,
           email,
-          displayName: existing?.displayName || displayName,
+          displayName,
         },
       };
     } catch (err: any) {
@@ -432,10 +432,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // State collections - initialized strictly empty as requested: "Don’t add initial data because im the one who will add this, no limitation to add."
-  const [customers, setCustomers] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('exins_customers');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [bales, setBales] = useState<Bale[]>(() => {
     const saved = localStorage.getItem('exins_bales');
     return saved ? JSON.parse(saved) : [];
@@ -468,7 +465,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('exins_orders');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? (JSON.parse(saved) as Order[]).map(normalizeOrder) : [];
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -498,8 +495,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Sync state to localStorage cache
   useEffect(() => {
-    localStorage.setItem('exins_customers', JSON.stringify(customers));
-  }, [customers]);
+    localStorage.removeItem('exins_customers');
+  }, []);
   useEffect(() => {
     localStorage.setItem('exins_bales', JSON.stringify(bales));
   }, [bales]);
@@ -640,7 +637,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       query(collection(db, 'orders')),
       (snapshot) => {
         const loaded: Order[] = [];
-        snapshot.forEach((d) => loaded.push({ ...(d.data() as Order), id: d.id }));
+        snapshot.forEach((d) => loaded.push(normalizeOrder({ ...(d.data() as Order), id: d.id })));
 
         if (currentUser.role !== 'owner') {
           setOrders(loaded);
@@ -650,14 +647,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setOrders((prev) => {
           const orderMap = new Map<string, Order>();
           // 1. Existing orders in memory
-          prev.forEach((o) => orderMap.set(o.id, o));
+          prev.forEach((o) => orderMap.set(o.id, normalizeOrder(o)));
 
           // 2. Existing orders in localStorage cache
           try {
             const saved = localStorage.getItem('exins_orders');
             if (saved) {
               const localList: Order[] = JSON.parse(saved);
-              localList.forEach((o) => {
+              localList.map(normalizeOrder).forEach((o) => {
                 if (!orderMap.has(o.id)) orderMap.set(o.id, o);
               });
             }
@@ -666,7 +663,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
 
           // 3. Remote orders from Firestore (source of truth for synced docs)
-          loaded.forEach((o) => orderMap.set(o.id, o));
+          loaded.forEach((o) => orderMap.set(o.id, normalizeOrder(o)));
 
           const merged = Array.from(orderMap.values());
           localStorage.setItem('exins_orders', JSON.stringify(merged));
@@ -696,36 +693,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       (error) => handleFirestoreError(error, OperationType.LIST, 'transactions')
     );
 
-    const unsubCustomers = onSnapshot(
-      query(collection(db, 'customers')),
-      (snapshot) => {
-        const loaded: UserProfile[] = [];
-        snapshot.forEach((d) => loaded.push({ ...(d.data() as UserProfile), uid: d.id }));
-        if (loaded.length > 0) {
-          setCustomers(loaded);
-        } else if (currentUser.role === 'owner') {
-          // If Firestore is empty, check if we have local customers to persist into Firestore
-          const localSaved = localStorage.getItem('exins_customers');
-          if (localSaved) {
-            try {
-              const localCusts: UserProfile[] = JSON.parse(localSaved);
-              if (localCusts.length > 0) {
-                setCustomers(localCusts);
-                localCusts.forEach((c) => {
-                  setDoc(doc(db, 'customers', c.uid), cleanFirestoreData(c)).catch(console.warn);
-                });
-                return;
-              }
-            } catch {
-              // ignore
-            }
-          }
-        } else {
-          setCustomers([]);
-        }
-      },
-      (error) => handleFirestoreError(error, OperationType.LIST, 'customers')
-    );
+    const unsubCustomers =
+      currentUser.role === 'owner' || currentUser.role === 'staff'
+        ? onSnapshot(
+            query(collection(db, 'customers')),
+            (snapshot) => {
+              const loaded: CustomerSummary[] = [];
+              snapshot.forEach((d) => loaded.push({ ...(d.data() as CustomerSummary), id: d.id }));
+              setCustomers(loaded);
+            },
+            (error) => handleFirestoreError(error, OperationType.LIST, 'customers')
+          )
+        : () => setCustomers([]);
 
     const unsubItemLogs = onSnapshot(
       query(collection(db, 'item_logs')),
@@ -787,6 +766,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (transactions.length > 0) {
       const missingTxs = transactions.filter((tx) => {
         if (tx.flowType !== 'inflow') return false;
+        if (tx.category !== 'POS Sales' && !tx.orderId?.startsWith('pos_')) return false;
         const linkedId = tx.orderId;
         if (!linkedId) return false;
         return !orders.some((o) => o.id === linkedId);
@@ -794,24 +774,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (missingTxs.length > 0) {
         missingTxs.forEach(async (tx) => {
-          const isPos = tx.category === 'POS Sales' || tx.orderId?.startsWith('pos_');
           const ordNumMatch = tx.description?.match(/#(EX-[0-9]+|POS-[0-9]+)/);
           const orderNum = ordNumMatch
             ? ordNumMatch[1]
-            : isPos
-            ? `POS-${Date.now().toString().slice(-6)}`
-            : `EX-${Date.now().toString().slice(-8)}`;
+            : `POS-${Date.now().toString().slice(-6)}`;
 
           const custNameMatch = tx.description?.match(/\(([^)]+)\)/);
-          const custName = custNameMatch
-            ? custNameMatch[1]
-            : isPos
-            ? 'Walk-in Customer'
-            : 'Online Customer';
-
-          const matchedCust = customers.find(
-            (c) => c.displayName.toLowerCase() === custName.toLowerCase()
-          );
+          const custName = custNameMatch ? custNameMatch[1] : 'Walk-in Customer';
 
           const matchedLog = itemStatusLogs.find(
             (l) => l.notes && l.notes.includes(orderNum)
@@ -824,11 +793,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const restoredOrder: Order = {
             id: tx.orderId!,
             orderNumber: orderNum,
-            userId: matchedCust?.uid,
             customerName: custName,
-            contactNumber: matchedCust?.phone || 'N/A',
-            email: matchedCust?.email || (isPos ? 'pos@exins.shop' : 'customer@exins.shop'),
-            address: matchedCust?.address || (isPos ? 'In-store Purchase' : 'Standard Delivery'),
             items: matchedLog
               ? [
                   {
@@ -845,7 +810,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               : [
                   {
                     productId: 'recovered',
-                    name: isPos ? 'Store Item' : 'Online Apparel',
+                    name: 'Store Item',
                     size: 'Free Size',
                     price: tx.inflow || 0,
                     costPrice: 0,
@@ -855,17 +820,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   },
                 ],
             totalAmount: matchedProduct ? matchedProduct.sellingPrice : tx.inflow || 0,
-            paymentType: (tx.inflow || 0) < 500 && !isPos ? 'down_payment' : 'pay_now',
-            downPaymentAmount: (tx.inflow || 0) < 500 && !isPos ? tx.inflow || 100 : 0,
-            remainingBalance:
-              (tx.inflow || 0) < 500 && !isPos && matchedProduct
-                ? Math.max(0, matchedProduct.sellingPrice - (tx.inflow || 0))
-                : 0,
-            status: isPos ? 'completed' : 'pending',
-            orderSource: isPos ? 'pos' : 'online',
+            status: 'completed',
+            discount: 0,
+            amountTendered: tx.inflow || 0,
+            changeAmount: 0,
             paymentMethod: tx.paymentMethod || 'gcash',
-            courier: 'jnt',
-            shippingNote: 'Customer shoulders shipping fee directly upon courier delivery.',
             createdAt: tx.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
@@ -881,7 +840,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
       }
     }
-  }, [transactions, orders, customers, itemStatusLogs, products]);
+  }, [transactions, orders, itemStatusLogs, products]);
 
   // Bale Management
   const addBale = async (baleData: Omit<Bale, 'id' | 'totalSalesMade' | 'createdAt'>) => {
@@ -1211,6 +1170,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // POS Sale Completion
   const completePosSale = async (params: {
     items: { product: Product; quantity: number }[];
+    date: string;
     customerName?: string;
     discount: number;
     paymentMethod: 'cash' | 'gcash';
@@ -1234,6 +1194,26 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const totalAmount = Math.max(0, rawTotal - params.discount);
     const changeAmount = Math.max(0, params.amountTendered - totalAmount);
 
+    const [saleYear, saleMonth, saleDay] = params.date.split('-').map(Number);
+    const now = new Date();
+    const saleTimestamp = new Date(
+      saleYear,
+      saleMonth - 1,
+      saleDay,
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds(),
+    );
+    if (
+      !Number.isFinite(saleTimestamp.getTime()) ||
+      saleTimestamp.getFullYear() !== saleYear ||
+      saleTimestamp.getMonth() !== saleMonth - 1 ||
+      saleTimestamp.getDate() !== saleDay
+    ) {
+      throw new Error('Enter a valid sale date.');
+    }
+
     const id = `pos_${Date.now()}`;
     const orderNumber = `POS-${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -1241,21 +1221,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id,
       orderNumber,
       customerName: params.customerName || 'Walk-in Customer',
-      contactNumber: 'N/A',
-      email: 'pos@exins.shop',
-      address: 'In-store Purchase (EXINS Jksur+ Novaliches QC)',
       items: orderItems,
       totalAmount,
-      paymentType: 'pay_now',
-      downPaymentAmount: 0,
-      remainingBalance: 0,
       status: 'completed',
-      orderSource: 'pos',
       discount: params.discount,
       amountTendered: params.amountTendered,
       changeAmount,
       paymentMethod: params.paymentMethod,
-      createdAt: new Date().toISOString(),
+      createdAt: saleTimestamp.toISOString(),
     };
 
     setOrders((prev) => [newOrder, ...prev]);
@@ -1303,7 +1276,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const txId = `tx_${Date.now()}`;
     const newTx: Transaction = {
       id: txId,
-      date: new Date().toISOString().split('T')[0],
+      date: params.date,
       flowType: 'inflow',
       category: 'POS Sales',
       account: 'Store Counter Sales',
@@ -1312,7 +1285,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       inflow: totalAmount,
       outflow: 0,
       orderId: id,
-      createdAt: new Date().toISOString(),
+      createdAt: saleTimestamp.toISOString(),
     };
     setTransactions((prev) => [newTx, ...prev]);
 

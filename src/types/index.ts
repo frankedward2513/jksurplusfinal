@@ -12,6 +12,12 @@ export interface UserProfile {
   createdAt?: string;
 }
 
+export interface CustomerSummary {
+  id: string;
+  customerName: string;
+  totalPurchase: number;
+}
+
 export interface Bale {
   id: string;
   baleCode: string;
@@ -102,21 +108,10 @@ export interface OrderItem {
 export interface Order {
   id: string;
   orderNumber: string;
-  userId?: string;
   customerName: string;
-  contactNumber: string;
-  email: string;
-  address: string;
   items: OrderItem[];
   totalAmount: number;
-  paymentType: 'pay_now' | 'down_payment';
-  downPaymentAmount: number;
-  remainingBalance: number;
-  receiptUrl?: string;
-  courier?: 'lbc' | 'lalamove' | 'jnt';
-  shippingNote?: string;
   status: 'pending' | 'preparing' | 'dropped_to_courier' | 'completed' | 'cancelled';
-  orderSource: 'online' | 'pos';
   discount?: number;
   amountTendered?: number;
   changeAmount?: number;

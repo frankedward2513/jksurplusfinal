@@ -14,6 +14,13 @@ import {
   Tag,
 } from 'lucide-react';
 
+const getLocalDateValue = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const PosView: React.FC = () => {
   const { products, completePosSale } = useStore();
 
@@ -23,6 +30,7 @@ export const PosView: React.FC = () => {
 
   // POS Cart State
   const [posCart, setPosCart] = useState<{ product: Product; quantity: number }[]>([]);
+  const [saleDate, setSaleDate] = useState(() => getLocalDateValue());
   const [customerName, setCustomerName] = useState('');
   const [discountAmount, setDiscountAmount] = useState<number | ''>('');
   const [showDiscountInput, setShowDiscountInput] = useState(false);
@@ -156,6 +164,7 @@ export const PosView: React.FC = () => {
     try {
       const order = await completePosSale({
         items: posCart,
+        date: saleDate,
         customerName: customerName.trim() || 'Walk-in Customer',
         discount: discountVal,
         paymentMethod,
@@ -164,6 +173,7 @@ export const PosView: React.FC = () => {
 
       // Clear POS cart & state
       setPosCart([]);
+      setSaleDate(getLocalDateValue());
       setCustomerName('');
       setDiscountAmount('');
       setAmountTendered('');
@@ -328,7 +338,22 @@ export const PosView: React.FC = () => {
             </span>
           </div>
 
-          {/* Customer Name (Optional as requested) */}
+          {/* Sale Date */}
+          <div className="text-xs">
+            <label htmlFor="pos-sale-date" className="mb-1 block font-medium text-stone-300">
+              Sale Date
+            </label>
+            <input
+              id="pos-sale-date"
+              type="date"
+              required
+              value={saleDate}
+              onChange={(event) => setSaleDate(event.target.value)}
+              className="w-full rounded-xl border border-orange-500/20 bg-stone-950 px-3 py-2 text-xs text-stone-100 focus:border-orange-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Customer Name */}
           <div className="text-xs">
             <label className="block font-medium text-stone-300 mb-1">
               Customer Name <span className="text-stone-500">(Optional)</span>

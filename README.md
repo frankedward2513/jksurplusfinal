@@ -14,6 +14,10 @@ Select every Vercel deployment environment that needs the database (Production, 
 
 In the Supabase project, run [`supabase_schema.sql`](./supabase_schema.sql) in the SQL Editor to create the app tables and row-level security policies. The app's database roles and policies depend on that schema; do not fix access errors by disabling row-level security.
 
+The current schema declares **no foreign key constraints**. It does contain app-level references: `bales.supplier_id` → `suppliers.id`; `products.category` → `categories.name` and `products.bale_code` → `bales.bale_code`; `expenses.account_id` → `expense_accounts.id`; `users.uid` → Supabase Auth user IDs; `item_logs.product_id` → `products.id`; and `transactions.order_id` / `transactions.expense_id` → `orders.id` / `expenses.id`. Product IDs in `orders.items` are stored inside JSON. These links are not database-enforced relationships. The SQL script ends with a query that lists any enforced foreign keys in the project.
+
+The schema migration removes the obsolete online-checkout columns from `orders` and replaces `customers` login profiles with POS purchase summaries (`customer_name`, `total_purchase`). Existing customer profile rows and values in the removed order columns are deleted. POS orders, their customer names, item details, amounts, and other retained columns are preserved; existing named, non-cancelled POS totals are consolidated by normalized customer name. New or changed orders update the summary automatically.
+
 If data still does not load, check the deployed browser's Developer Tools → Network for requests to `<project-ref>.supabase.co/rest/v1/`:
 
 - No request, or an error saying Supabase is not configured: verify the variable names and that they were set for the deployment environment, then redeploy.

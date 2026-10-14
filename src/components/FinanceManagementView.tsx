@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
-import { ExpenseAccount } from '../types';
+import { ExpenseAccount, Transaction } from '../types';
 import {
   DollarSign,
   Receipt,
@@ -30,6 +30,9 @@ import {
 import { LogItemStatusModal } from './LogItemStatusModal';
 import { ViewProductLostModal } from './ViewProductLostModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { PAGE_SIZE, Pagination } from './Pagination';
+
+type FinanceTransaction = Transaction & { isOrderFallback?: boolean };
 
 export const FinanceManagementView: React.FC = () => {
   const {
@@ -50,6 +53,8 @@ export const FinanceManagementView: React.FC = () => {
 
   // 3 Tabs: 'accounts' | 'record' | 'history'
   const [activeTab, setActiveTab] = useState<'accounts' | 'record' | 'history'>('accounts');
+  const [expenseAccountPage, setExpenseAccountPage] = useState(1);
+  const [transactionPage, setTransactionPage] = useState(1);
 
   // Deletion confirmation state to prevent accidental deletes
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -184,6 +189,7 @@ export const FinanceManagementView: React.FC = () => {
   const [isProductFilterModalOpen, setIsProductFilterModalOpen] = useState(false);
   const [productModalSearch, setProductModalSearch] = useState('');
   const [productModalCategory, setProductModalCategory] = useState('all');
+  const [productModalPage, setProductModalPage] = useState(1);
 
   // 4 Dropdown state for Transaction History (Channel, Flow, Payment Method, Date)
   const [openDropdown, setOpenDropdown] = useState<'channel' | 'flow' | 'payment' | 'date' | null>(null);
@@ -293,21 +299,71 @@ export const FinanceManagementView: React.FC = () => {
       return true;
     });
   }, [products, productModalCategory, productModalSearch]);
+  const visibleModalProducts = modalFilteredProducts.slice(
+    (productModalPage - 1) * PAGE_SIZE,
+    productModalPage * PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setProductModalPage(1);
+  }, [productModalCategory, productModalSearch]);
+
+  const financeTransactions = useMemo<FinanceTransaction[]>(() => {
+    const posInflows = transactions.filter((transaction) => transaction.flowType === 'inflow');
+    const transactionsByOrderId = new Set<string>();
+    posInflows.forEach((transaction) => {
+      if (transaction.orderId) {
+        transactionsByOrderId.add(transaction.orderId);
+        return;
+      }
+      const linkedOrder = orders.find((order) =>
+        transaction.description?.includes(order.orderNumber),
+      );
+      if (linkedOrder) transactionsByOrderId.add(linkedOrder.id);
+    });
+    const missingPosInflows = orders
+      .filter((order) =>
+        order.status !== 'cancelled' &&
+        (order.id.startsWith('pos_') || order.orderNumber.startsWith('POS-')) &&
+        !transactionsByOrderId.has(order.id),
+      )
+      .map((order): FinanceTransaction => {
+        const createdAt = order.createdAt;
+        const saleDate = new Date(createdAt);
+        const date = Number.isNaN(saleDate.getTime())
+          ? ''
+          : `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
+        return {
+          id: `order_fallback_${order.id}`,
+          date,
+          flowType: 'inflow',
+          category: 'POS Sales',
+          account: 'Store Counter Sales',
+          description: `POS counter sale #${order.orderNumber} (${order.customerName || 'Walk-in'})`,
+          paymentMethod: order.paymentMethod || 'cash',
+          inflow: Number(order.totalAmount) || 0,
+          outflow: 0,
+          orderId: order.id,
+          createdAt,
+          isOrderFallback: true,
+        };
+      });
+
+    return [...transactions, ...missingPosInflows];
+  }, [transactions, orders]);
 
   // Filtered transactions sorted current date to past date (newest on top)
   const filteredTransactions = useMemo(() => {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
-    const filtered = transactions.filter((tx) => {
+    const filtered = financeTransactions.filter((tx) => {
       // Flow type filter
       if (flowFilter !== 'all' && tx.flowType !== flowFilter) return false;
 
       // Channel filter: POS vs Disbursement
       if (channelFilter === 'pos') {
-        const order = tx.orderId ? orders.find((o) => o.id === tx.orderId) : null;
         const isPos =
-          order?.orderSource === 'pos' ||
           tx.category === 'POS Sales' ||
           tx.account?.toLowerCase().includes('counter');
         if (!isPos) return false;
@@ -428,7 +484,7 @@ export const FinanceManagementView: React.FC = () => {
       return createdTimeB - createdTimeA;
     });
   }, [
-    transactions,
+    financeTransactions,
     flowFilter,
     channelFilter,
     selectedProductFilterId,
@@ -440,6 +496,18 @@ export const FinanceManagementView: React.FC = () => {
     orders,
     products,
   ]);
+  const visibleExpenseAccounts = expenseAccounts.slice(
+    (expenseAccountPage - 1) * PAGE_SIZE,
+    expenseAccountPage * PAGE_SIZE,
+  );
+  const visibleTransactions = filteredTransactions.slice(
+    (transactionPage - 1) * PAGE_SIZE,
+    transactionPage * PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setTransactionPage(1);
+  }, [filteredTransactions]);
 
   // Total Inflow, Total Outflow, Net Operating Outflow/Inflow
   const summary = useMemo(() => {
@@ -654,7 +722,7 @@ export const FinanceManagementView: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {expenseAccounts.map((acc) => {
+                {visibleExpenseAccounts.map((acc) => {
                   const spent = acc.totalSpent || 0;
                   const limit = acc.monthlyBudget || 1;
                   const percent = Math.round((spent / limit) * 100);
@@ -765,6 +833,11 @@ export const FinanceManagementView: React.FC = () => {
                 })}
               </div>
             )}
+            <Pagination
+              totalItems={expenseAccounts.length}
+              currentPage={expenseAccountPage}
+              onPageChange={setExpenseAccountPage}
+            />
           </div>
         </div>
       )}
@@ -1460,7 +1533,7 @@ export const FinanceManagementView: React.FC = () => {
             </div>
           </div>
 
-          {/* Database Table Below: Scrollable if more than 20 rows, Current date to past date at top */}
+          {/* Financial transactions, paginated newest to oldest */}
           <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-3.5 relative z-10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-orange-500/20">
               <div>
@@ -1471,20 +1544,13 @@ export const FinanceManagementView: React.FC = () => {
                   </span>
                 </h3>
                 <p className="text-xs text-stone-400 mt-0.5">
-                  Transactions sorted chronologically from current date to past. Max 20 rows visible before scrolling.
+                  Transactions sorted chronologically from current date to past. Showing up to 15 transactions per page.
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono text-orange-400 bg-stone-950 px-3 py-1.5 rounded-xl border border-orange-500/20">
                   {filteredTransactions.length} Transactions
-                  {filteredTransactions.length > 20 && ' (20 visible • Scroll for more)'}
                 </span>
-                {filteredTransactions.length > 20 && (
-                  <span className="text-[10px] text-stone-400 bg-stone-900/80 px-2 py-1 rounded-lg border border-stone-800 hidden sm:flex items-center gap-1 font-mono">
-                    <ArrowUpDown className="w-3 h-3 text-orange-400" />
-                    <span>Scrollbar Active</span>
-                  </span>
-                )}
               </div>
             </div>
 
@@ -1494,9 +1560,9 @@ export const FinanceManagementView: React.FC = () => {
               </p>
             ) : (
               <>
-                {/* Mobile Touch Cards View (visible on < md) with max 20 scrollbar */}
-                <div className="block md:hidden max-h-[750px] overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-orange-500/60 scrollbar-track-stone-950">
-                  {filteredTransactions.map((tx) => (
+                {/* Mobile touch cards */}
+                <div className="block md:hidden space-y-2.5 pr-1">
+                  {visibleTransactions.map((tx) => (
                     <div
                       key={tx.id}
                       className="p-3.5 rounded-2xl bg-stone-950/70 border border-stone-800 space-y-2"
@@ -1535,36 +1601,38 @@ export const FinanceManagementView: React.FC = () => {
                               ? `+₱${(tx.inflow || 0).toLocaleString()}`
                               : `-₱${(tx.outflow || 0).toLocaleString()}`}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDeleteTarget({
-                                type: 'transaction',
-                                id: tx.id,
-                                title: 'Delete Financial Transaction?',
-                                message: 'Are you sure you want to delete this transaction record? If you clicked this by accident, click Cancel to keep it.',
-                                itemName: `${tx.flowType.toUpperCase()}: ${tx.account || tx.category}`,
-                                details: [
-                                  { label: 'Date', value: tx.date || tx.createdAt.split('T')[0] },
-                                  { label: 'Amount', value: `₱${((tx.inflow || 0) + (tx.outflow || 0)).toLocaleString()}` },
-                                  { label: 'Payment Method', value: tx.paymentMethod.replace('_', ' ').toUpperCase() },
-                                  { label: 'Description', value: tx.description || 'N/A' },
-                                ],
-                              });
-                            }}
-                            className="p-1 rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
-                            title="Delete Transaction"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {!tx.isOrderFallback && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteTarget({
+                                  type: 'transaction',
+                                  id: tx.id,
+                                  title: 'Delete Financial Transaction?',
+                                  message: 'Are you sure you want to delete this transaction record? If you clicked this by accident, click Cancel to keep it.',
+                                  itemName: `${tx.flowType.toUpperCase()}: ${tx.account || tx.category}`,
+                                  details: [
+                                    { label: 'Date', value: tx.date || tx.createdAt.split('T')[0] },
+                                    { label: 'Amount', value: `₱${((tx.inflow || 0) + (tx.outflow || 0)).toLocaleString()}` },
+                                    { label: 'Payment Method', value: tx.paymentMethod.replace('_', ' ').toUpperCase() },
+                                    { label: 'Description', value: tx.description || 'N/A' },
+                                  ],
+                                });
+                              }}
+                              className="p-1 rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                              title="Delete Transaction"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Desktop Full Table View (visible on md+) with max 20 rows height & scrollbar if too long */}
-                <div className="hidden md:block overflow-x-auto max-h-[860px] overflow-y-auto rounded-2xl border border-stone-800 scrollbar-thin scrollbar-thumb-orange-500/60 scrollbar-track-stone-950">
+                {/* Desktop full table */}
+                <div className="hidden md:block overflow-x-auto rounded-2xl border border-stone-800">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="sticky top-0 z-10 bg-stone-900 border-b border-orange-500/20 shadow-sm backdrop-blur-md">
                       <tr className="text-stone-400 uppercase text-[11px]">
@@ -1579,7 +1647,7 @@ export const FinanceManagementView: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-800 font-mono">
-                      {filteredTransactions.map((tx) => (
+                      {visibleTransactions.map((tx) => (
                         <tr key={tx.id} className="hover:bg-stone-800/40 transition">
                           <td className="py-3.5 px-3 text-stone-300">
                             {tx.date || tx.createdAt.split('T')[0]}
@@ -1611,34 +1679,41 @@ export const FinanceManagementView: React.FC = () => {
                             {tx.outflow ? `₱${tx.outflow.toLocaleString()}` : '—'}
                           </td>
                           <td className="py-3.5 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDeleteTarget({
-                                  type: 'transaction',
-                                  id: tx.id,
-                                  title: 'Delete Financial Transaction?',
-                                  message: 'Are you sure you want to delete this transaction record? If you clicked this by accident, click Cancel to keep it.',
-                                  itemName: `${tx.flowType.toUpperCase()}: ${tx.account || tx.category}`,
-                                  details: [
-                                    { label: 'Date', value: tx.date || tx.createdAt.split('T')[0] },
-                                    { label: 'Amount', value: `₱${((tx.inflow || 0) + (tx.outflow || 0)).toLocaleString()}` },
-                                    { label: 'Payment Method', value: tx.paymentMethod.replace('_', ' ').toUpperCase() },
-                                    { label: 'Description', value: tx.description || 'N/A' },
-                                  ],
-                                });
-                              }}
-                              className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
-                              title="Delete Transaction"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {!tx.isOrderFallback && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeleteTarget({
+                                    type: 'transaction',
+                                    id: tx.id,
+                                    title: 'Delete Financial Transaction?',
+                                    message: 'Are you sure you want to delete this transaction record? If you clicked this by accident, click Cancel to keep it.',
+                                    itemName: `${tx.flowType.toUpperCase()}: ${tx.account || tx.category}`,
+                                    details: [
+                                      { label: 'Date', value: tx.date || tx.createdAt.split('T')[0] },
+                                      { label: 'Amount', value: `₱${((tx.inflow || 0) + (tx.outflow || 0)).toLocaleString()}` },
+                                      { label: 'Payment Method', value: tx.paymentMethod.replace('_', ' ').toUpperCase() },
+                                      { label: 'Description', value: tx.description || 'N/A' },
+                                    ],
+                                  });
+                                }}
+                                className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                                title="Delete Transaction"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                <Pagination
+                  totalItems={filteredTransactions.length}
+                  currentPage={transactionPage}
+                  onPageChange={setTransactionPage}
+                />
               </>
             )}
           </div>
@@ -1742,13 +1817,13 @@ export const FinanceManagementView: React.FC = () => {
               </div>
 
               {/* Product Match List */}
-              <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1 border border-stone-800 rounded-2xl p-2 bg-stone-950/60 scrollbar-thin scrollbar-thumb-orange-500/50">
+              <div className="space-y-1.5 pr-1 border border-stone-800 rounded-2xl p-2 bg-stone-950/60">
                 {modalFilteredProducts.length === 0 ? (
                   <p className="text-center py-8 text-xs text-stone-400">
                     No products found matching "{productModalSearch}". Try searching product code (e.g. EX-...) or name.
                   </p>
                 ) : (
-                  modalFilteredProducts.map((p) => {
+                  visibleModalProducts.map((p) => {
                     const isSelected = selectedProductFilterId === p.id;
                     return (
                       <div
@@ -1805,6 +1880,11 @@ export const FinanceManagementView: React.FC = () => {
                   })
                 )}
               </div>
+              <Pagination
+                totalItems={modalFilteredProducts.length}
+                currentPage={productModalPage}
+                onPageChange={setProductModalPage}
+              />
             </div>
 
             {/* Modal Footer */}

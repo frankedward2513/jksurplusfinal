@@ -11,15 +11,30 @@ import {
   Filter,
   Users,
 } from 'lucide-react';
+import { PAGE_SIZE, Pagination } from './Pagination';
 
 type DateFilterPreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'custom';
 
+function getLocalDateKey(value: string | undefined): string | null {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export const DashboardView: React.FC = () => {
-  const { orders, expenses, transactions, products } = useStore();
+  const { customers, orders, expenses, transactions, products } = useStore();
 
   const [dateFilter, setDateFilter] = useState<DateFilterPreset>('all');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
+  const [monthlyBreakdownPage, setMonthlyBreakdownPage] = useState(1);
 
   // Date filtering logic
   const filteredData = useMemo(() => {
@@ -61,25 +76,47 @@ export const DashboardView: React.FC = () => {
     };
   }, [orders, expenses, transactions, dateFilter, customStart, customEnd]);
 
-  // 6 KPIs Calculations
-  const kpis = useMemo(() => {
-    const posCustomerNames = new Set(
-      orders
-        .filter((order) => order.orderSource === 'pos' && order.status !== 'cancelled')
-        .map((order) => (order.customerName || '').trim().replace(/\s+/g, ' ').toLowerCase())
-        .filter((name) => name && !['walk-in', 'walk in', 'walk-in customer', 'walk in customer'].includes(name)),
+  const salesInflows = useMemo(() => {
+    const inflowOrderIds = new Set(
+      transactions
+        .filter((transaction) => transaction.flowType === 'inflow' && transaction.orderId)
+        .map((transaction) => transaction.orderId),
     );
 
-    // 1. Total Sales (Inflows from transactions; fallback to orders if no transactions exist)
-    const totalSalesFromTx = filteredData.transactions
+    return [
+      ...transactions
+        .filter((transaction) => transaction.flowType === 'inflow')
+        .map((transaction) => ({
+          date: transaction.date || transaction.createdAt,
+          amount: Number(transaction.inflow) || 0,
+        })),
+      ...orders
+        .filter((order) =>
+          order.status !== 'cancelled' &&
+          (order.id.startsWith('pos_') || order.orderNumber.startsWith('POS-')) &&
+          !inflowOrderIds.has(order.id),
+        )
+        .map((order) => ({ date: order.createdAt, amount: Number(order.totalAmount) || 0 })),
+    ];
+  }, [transactions, orders]);
+
+  // 6 KPIs Calculations
+  const kpis = useMemo(() => {
+    // Transactions are preferred, with an order fallback for POS sales that have
+    // no matching inflow transaction (for example, older or partially synced sales).
+    const inflowTransactions = filteredData.transactions
       .filter((t) => t.flowType === 'inflow')
-      .reduce((sum, t) => sum + (t.inflow || 0), 0);
+    const totalSalesFromTx = inflowTransactions
+      .reduce((sum, t) => sum + (Number(t.inflow) || 0), 0);
 
-    const totalSalesFromOrders = filteredData.orders
-      .filter((o) => o.status !== 'cancelled')
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+    const transactionOrderIds = new Set(
+      inflowTransactions.map((transaction) => transaction.orderId).filter(Boolean),
+    );
+    const totalSalesMissingFromTx = filteredData.orders
+      .filter((order) => order.status !== 'cancelled' && !transactionOrderIds.has(order.id))
+      .reduce((sum, order) => sum + (Number(order.totalAmount) || 0), 0);
 
-    const totalSales = transactions.length > 0 ? totalSalesFromTx : totalSalesFromOrders;
+    const totalSales = totalSalesFromTx + totalSalesMissingFromTx;
 
     // 2. Total Expenses (Outflows from transactions; fallback to expenses list if no transactions exist)
     const totalExpensesFromTx = filteredData.transactions
@@ -110,43 +147,42 @@ export const DashboardView: React.FC = () => {
     );
 
     return {
-      totalCustomers: posCustomerNames.size,
+      totalCustomers: customers.length,
       totalSales,
       totalExpenses,
       grossProfit,
       netProfit,
       remainingAssets,
     };
-  }, [filteredData, products, orders]);
+  }, [filteredData, products, orders, customers]);
 
   // Monthly performance breakdown data
   const monthlyBreakdown = useMemo(() => {
     const monthMap: Record<string, { monthKey: string; label: string; inflow: number; outflow: number }> = {};
 
-    // Group transactions by YYYY-MM
     transactions.forEach((tx) => {
-      const d = tx.date ? new Date(tx.date) : new Date(tx.createdAt);
-      if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+      if (tx.flowType !== 'outflow') return;
+      const dateKey = getLocalDateKey(tx.date || tx.createdAt);
+      if (!dateKey) return;
+      const key = dateKey.slice(0, 7);
+      const [year, month] = key.split('-').map(Number);
+      const label = new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
 
       if (!monthMap[key]) {
         monthMap[key] = { monthKey: key, label, inflow: 0, outflow: 0 };
       }
-      if (tx.flowType === 'inflow') monthMap[key].inflow += tx.inflow;
-      if (tx.flowType === 'outflow') monthMap[key].outflow += tx.outflow;
+      monthMap[key].outflow += Number(tx.outflow) || 0;
     });
 
-    // Also factor in orders if transactions were empty
-    if (Object.keys(monthMap).length === 0 && orders.length > 0) {
-      orders.forEach((o) => {
-        const d = new Date(o.createdAt);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-        if (!monthMap[key]) monthMap[key] = { monthKey: key, label, inflow: 0, outflow: 0 };
-        if (o.status !== 'cancelled') monthMap[key].inflow += o.totalAmount;
-      });
-    }
+    salesInflows.forEach((sale) => {
+      const dateKey = getLocalDateKey(sale.date);
+      if (!dateKey) return;
+      const key = dateKey.slice(0, 7);
+      const [year, month] = key.split('-').map(Number);
+      const label = new Date(year, month - 1, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+      if (!monthMap[key]) monthMap[key] = { monthKey: key, label, inflow: 0, outflow: 0 };
+      monthMap[key].inflow += sale.amount;
+    });
 
     const sorted = Object.values(monthMap).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
     return sorted.map((item) => {
@@ -158,35 +194,38 @@ export const DashboardView: React.FC = () => {
         margin: margin.toFixed(1),
       };
     });
-  }, [transactions, orders]);
+  }, [transactions, salesInflows]);
+  const visibleMonthlyBreakdown = monthlyBreakdown.slice(
+    (monthlyBreakdownPage - 1) * PAGE_SIZE,
+    monthlyBreakdownPage * PAGE_SIZE,
+  );
 
   // Graph points generation for the Line Graph (Sales Inflow vs Expense Outflow)
   const lineGraphData = useMemo(() => {
-    // Generate chronological day intervals (last 14 or 7 points)
+    // Generate chronological daily totals for the last 10 days.
     const pointsCount = 10;
     const points: { label: string; dateStr: string; inflow: number; outflow: number }[] = [];
     const now = new Date();
 
     for (let i = pointsCount - 1; i >= 0; i--) {
       const d = new Date();
-      d.setDate(now.getDate() - i * 2);
-      const dateStr = d.toISOString().split('T')[0];
+      d.setDate(now.getDate() - i);
+      const dateStr = getLocalDateKey(d.toISOString())!;
       const label = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
 
-      // Calculate totals for that day / slice
-      const dayInflows = transactions
-        .filter((t) => t.flowType === 'inflow' && (t.date === dateStr || t.createdAt.startsWith(dateStr)))
-        .reduce((sum, t) => sum + t.inflow, 0);
+      const dayInflows = salesInflows
+        .filter((sale) => getLocalDateKey(sale.date) === dateStr)
+        .reduce((sum, sale) => sum + sale.amount, 0);
 
       const dayOutflows = transactions
-        .filter((t) => t.flowType === 'outflow' && (t.date === dateStr || t.createdAt.startsWith(dateStr)))
-        .reduce((sum, t) => sum + t.outflow, 0);
+        .filter((t) => t.flowType === 'outflow' && getLocalDateKey(t.date || t.createdAt) === dateStr)
+        .reduce((sum, t) => sum + (Number(t.outflow) || 0), 0);
 
       points.push({ label, dateStr, inflow: dayInflows, outflow: dayOutflows });
     }
 
     return points;
-  }, [transactions]);
+  }, [transactions, orders, salesInflows]);
 
   // SVG dimensions & scaling
   const maxVal = Math.max(
@@ -306,7 +345,7 @@ export const DashboardView: React.FC = () => {
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-black text-blue-300">{kpis.totalCustomers}</div>
-          <p className="text-[10px] sm:text-[11px] text-stone-400 mt-1 truncate">Unique names on POS sales</p>
+          <p className="text-[10px] sm:text-[11px] text-stone-400 mt-1 truncate">Unique customer names</p>
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-500 opacity-60" />
         </div>
 
@@ -525,7 +564,7 @@ export const DashboardView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-800/60 font-mono">
-                {monthlyBreakdown.map((row) => (
+                {visibleMonthlyBreakdown.map((row) => (
                   <tr key={row.monthKey} className="hover:bg-stone-800/40 transition">
                     <td className="py-3.5 px-4 font-sans font-semibold text-white">{row.label}</td>
                     <td className="py-3.5 px-4 text-right font-medium text-emerald-400">
@@ -558,6 +597,11 @@ export const DashboardView: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            <Pagination
+              totalItems={monthlyBreakdown.length}
+              currentPage={monthlyBreakdownPage}
+              onPageChange={setMonthlyBreakdownPage}
+            />
           </div>
         )}
       </div>

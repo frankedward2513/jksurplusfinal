@@ -25,6 +25,7 @@ export const ShowcaseShopView: React.FC = () => {
   const [activeMode, setActiveMode] = useState<ShowcaseMode>('browse');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [maximumPrice, setMaximumPrice] = useState('');
   const [topCustomerFilterType, setTopCustomerFilterType] = useState<'month' | 'custom'>('month');
   const currentMonth = useMemo(() => {
     const date = new Date();
@@ -46,9 +47,12 @@ export const ShowcaseShopView: React.FC = () => {
         const matchesCategory =
           selectedCategory === 'all' ||
           product.category?.toLowerCase() === selectedCategory.toLowerCase();
-        return matchesSearch && matchesCategory;
+        const maxPrice = maximumPrice === '' ? null : Number(maximumPrice);
+        const matchesMaximumPrice =
+          maxPrice === null || (Number.isFinite(maxPrice) && product.sellingPrice <= maxPrice);
+        return matchesSearch && matchesCategory && matchesMaximumPrice;
       }),
-    [products, searchQuery, selectedCategory],
+    [products, searchQuery, selectedCategory, maximumPrice],
   );
 
   const availableMonths = useMemo(() => {
@@ -92,10 +96,11 @@ export const ShowcaseShopView: React.FC = () => {
         }
       }
 
-      const email = (order.email || '').trim().toLowerCase();
-      const phone = (order.contactNumber || '').replace(/\D/g, '').slice(-10);
-      const name = (order.customerName || 'Customer').trim();
-      const key = order.userId || email || (phone.length >= 7 ? `phone_${phone}` : name.toLowerCase());
+      const name = (order.customerName || 'Customer').trim().replace(/\s+/g, ' ');
+      const key = name.toLowerCase();
+      if (!key || ['walk-in', 'walk in', 'walk-in customer', 'walk in customer'].includes(key)) {
+        return;
+      }
       const customer = customerMap.get(key) || {
         customerId: key,
         customerName: name,
@@ -176,16 +181,40 @@ export const ShowcaseShopView: React.FC = () => {
       {activeMode === 'browse' ? (
         <>
           <section className="p-4 sm:p-5 rounded-2xl glass-panel space-y-4">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
-              <input
-                type="search"
-                aria-label="Search clothing"
-                placeholder="Search clothing..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full rounded-xl border border-orange-500/20 bg-stone-950/70 py-3 pl-11 pr-4 text-sm text-stone-100 placeholder:text-stone-500 focus:border-orange-500 focus:outline-none"
-              />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[3fr_1fr]">
+              <div className="flex min-w-0 flex-col gap-2">
+                <label htmlFor="showcase-search" className="text-xs font-semibold text-stone-300">
+                  Search clothing
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+                  <input
+                    id="showcase-search"
+                    type="search"
+                    placeholder="Search clothing..."
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className="w-full rounded-xl border border-orange-500/20 bg-stone-950/70 py-3 pl-11 pr-4 text-sm text-stone-100 placeholder:text-stone-500 focus:border-orange-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex min-w-0 flex-col gap-2">
+                <label htmlFor="showcase-maximum-price" className="text-xs font-semibold text-stone-300">
+                  Budget amount (₱)
+                </label>
+                <input
+                  id="showcase-maximum-price"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  placeholder="e.g. 500"
+                  value={maximumPrice}
+                  onChange={(event) => setMaximumPrice(event.target.value)}
+                  className="w-full rounded-xl border border-orange-500/20 bg-stone-950/70 px-4 py-3 text-sm text-stone-100 placeholder:text-stone-500 focus:border-orange-500 focus:outline-none"
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
@@ -232,7 +261,7 @@ export const ShowcaseShopView: React.FC = () => {
               <p className="mx-auto max-w-md text-xs text-stone-400">
                 {products.length === 0
                   ? 'No clothing has been listed yet.'
-                  : 'No products match your search and category.'}
+                  : 'No products match your search, category, and maximum price.'}
               </p>
             </div>
           ) : (

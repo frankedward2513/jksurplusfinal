@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Bale, Category, Product, Supplier } from '../types';
 import {
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { LogItemStatusModal } from './LogItemStatusModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { PAGE_SIZE, Pagination } from './Pagination';
 import { isValidContactNumber, isValidEmail } from '../utils/validation';
 
 export const InventoryManagementView: React.FC = () => {
@@ -73,6 +74,10 @@ export const InventoryManagementView: React.FC = () => {
 
   // 4 Tabs arranged: Bale Suppliers, Product Categories, Bale Management, Product List
   const [activeTab, setActiveTab] = useState<'suppliers' | 'categories' | 'bales' | 'products'>('suppliers');
+  const [supplierPage, setSupplierPage] = useState(1);
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [balePage, setBalePage] = useState(1);
+  const [productPage, setProductPage] = useState(1);
 
   // ===================== 1. BALE MANAGEMENT STATE =====================
   const generateBaleCode = () => `BALE-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -339,6 +344,17 @@ export const InventoryManagementView: React.FC = () => {
       );
     });
   }, [products, productSearch]);
+  const visibleSuppliers = suppliers.slice((supplierPage - 1) * PAGE_SIZE, supplierPage * PAGE_SIZE);
+  const visibleCategories = categories.slice((categoryPage - 1) * PAGE_SIZE, categoryPage * PAGE_SIZE);
+  const visibleBales = bales.slice((balePage - 1) * PAGE_SIZE, balePage * PAGE_SIZE);
+  const visibleProducts = filteredProductsList.slice(
+    (productPage - 1) * PAGE_SIZE,
+    productPage * PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [productSearch]);
 
   // ===================== 4. BALE SUPPLIERS STATE =====================
   const [supplierName, setSupplierName] = useState('');
@@ -591,7 +607,7 @@ export const InventoryManagementView: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                {suppliers.map((s) => (
+                {visibleSuppliers.map((s) => (
                   <div
                     key={s.id}
                     className="p-5 rounded-2xl glass-panel glass-panel-hover flex flex-col justify-between border border-orange-500/20 space-y-4 group"
@@ -658,6 +674,11 @@ export const InventoryManagementView: React.FC = () => {
                 ))}
               </div>
             )}
+            <Pagination
+              totalItems={suppliers.length}
+              currentPage={supplierPage}
+              onPageChange={setSupplierPage}
+            />
           </div>
         </div>
       )}
@@ -769,7 +790,7 @@ export const InventoryManagementView: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                {categories.map((cat) => (
+                {visibleCategories.map((cat) => (
                   <div
                     key={cat.id}
                     className="p-5 rounded-2xl glass-panel glass-panel-hover flex flex-col justify-between border border-orange-500/20 space-y-4 group"
@@ -835,6 +856,11 @@ export const InventoryManagementView: React.FC = () => {
                 ))}
               </div>
             )}
+            <Pagination
+              totalItems={categories.length}
+              currentPage={categoryPage}
+              onPageChange={setCategoryPage}
+            />
           </div>
         </div>
       )}
@@ -1046,7 +1072,7 @@ export const InventoryManagementView: React.FC = () => {
               <>
                 {/* Mobile Cards for Bales (Visible on phones & small screens) */}
                 <div className="block md:hidden space-y-3">
-                  {bales.map((b) => {
+                  {visibleBales.map((b) => {
                     const totalCost = b.totalPurchasePrice || 1;
                     const sales = b.totalSalesMade || 0;
                     const progressPct = Math.min(100, Math.round((sales / totalCost) * 100));
@@ -1186,7 +1212,7 @@ export const InventoryManagementView: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-800 font-mono">
-                      {bales.map((b) => {
+                      {visibleBales.map((b) => {
                         const totalCost = b.totalPurchasePrice || 1;
                         const sales = b.totalSalesMade || 0;
                         const progressPct = Math.min(100, Math.round((sales / totalCost) * 100));
@@ -1303,6 +1329,11 @@ export const InventoryManagementView: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+                <Pagination
+                  totalItems={bales.length}
+                  currentPage={balePage}
+                  onPageChange={setBalePage}
+                />
               </>
             )}
           </div>
@@ -1562,7 +1593,7 @@ export const InventoryManagementView: React.FC = () => {
               <>
                 {/* Mobile Cards View (Visible on phones & small screens) */}
                 <div className="block md:hidden space-y-3">
-                  {filteredProductsList.map((p) => (
+                  {visibleProducts.map((p) => (
                     <div
                       key={p.id}
                       className="p-4 rounded-2xl bg-stone-950/70 border border-orange-500/20 space-y-3"
@@ -1675,7 +1706,7 @@ export const InventoryManagementView: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-800 font-mono">
-                      {filteredProductsList.map((p) => (
+                      {visibleProducts.map((p) => (
                         <tr key={p.id} className="hover:bg-stone-800/40 transition">
                           <td className="py-3 px-3">
                             {p.imageUrl ? (
@@ -1756,6 +1787,11 @@ export const InventoryManagementView: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+                <Pagination
+                  totalItems={filteredProductsList.length}
+                  currentPage={productPage}
+                  onPageChange={setProductPage}
+                />
               </>
             )}
           </div>
