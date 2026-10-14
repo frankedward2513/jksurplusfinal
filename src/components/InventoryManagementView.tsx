@@ -17,7 +17,7 @@ import {
 import { LogItemStatusModal } from './LogItemStatusModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { PAGE_SIZE, Pagination } from './Pagination';
-import { isValidContactNumber, isValidEmail } from '../utils/validation';
+import { formatContactNumber, isValidContactNumber, isValidEmail } from '../utils/validation';
 
 export const InventoryManagementView: React.FC = () => {
   const {
@@ -376,7 +376,7 @@ export const InventoryManagementView: React.FC = () => {
       return;
     }
     if (supplierPhone.trim() && !isValidContactNumber(supplierPhone)) {
-      showFormAlert('Please enter a valid supplier contact number.');
+      showFormAlert('Enter the supplier contact number in 0000-000-0000 format.');
       return;
     }
 
@@ -414,7 +414,7 @@ export const InventoryManagementView: React.FC = () => {
     setSupplierName(s.name);
     setContactPerson(s.contactPerson || '');
     setSupplierEmail(s.email || '');
-    setSupplierPhone(s.phone || '');
+    setSupplierPhone(formatContactNumber(s.phone || ''));
     setSupplierAddress(s.address || '');
     setSupplierDesc(s.description || '');
     setActiveTab('suppliers');
@@ -554,11 +554,12 @@ export const InventoryManagementView: React.FC = () => {
                   <label className="block font-medium text-stone-300 mb-1">Contact Number</label>
                   <input
                     type="tel"
-                    placeholder="+63 917 888 9999"
-                    maxLength={20}
-                    title="Enter 7 to 15 digits, with optional spaces, hyphens, parentheses, or a leading +."
+                    placeholder="0000-000-0000"
+                    maxLength={13}
+                    inputMode="numeric"
+                    title="Enter exactly 11 digits in 0000-000-0000 format."
                     value={supplierPhone}
-                    onChange={(e) => setSupplierPhone(e.target.value)}
+                    onChange={(e) => setSupplierPhone(formatContactNumber(e.target.value))}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
                 </div>
