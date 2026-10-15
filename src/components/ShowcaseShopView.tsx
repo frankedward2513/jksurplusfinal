@@ -20,8 +20,7 @@ type CustomerSpend = {
 };
 
 export const ShowcaseShopView: React.FC = () => {
-  const { products, categories, currentUser, orders } = useStore();
-  const isStoreAdmin = currentUser.role === 'owner';
+  const { products, categories, orders } = useStore();
   const [activeMode, setActiveMode] = useState<ShowcaseMode>('browse');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -142,21 +141,19 @@ export const ShowcaseShopView: React.FC = () => {
               <Shirt className="h-4 w-4" />
               Browse Clothing
             </button>
-            {isStoreAdmin && (
-              <button
-                type="button"
-                onClick={() => setActiveMode('top_customers')}
-                aria-pressed={activeMode === 'top_customers'}
-                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
-                  activeMode === 'top_customers'
-                    ? 'bg-orange-600 text-white'
-                    : 'border border-orange-500/30 bg-stone-900/80 text-stone-200 hover:text-white'
-                }`}
-              >
-                <Trophy className="h-4 w-4 text-amber-400" />
-                Top 10 Customers
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setActiveMode('top_customers')}
+              aria-pressed={activeMode === 'top_customers'}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                activeMode === 'top_customers'
+                  ? 'bg-orange-600 text-white'
+                  : 'border border-orange-500/30 bg-stone-900/80 text-stone-200 hover:text-white'
+              }`}
+            >
+              <Trophy className="h-4 w-4 text-amber-400" />
+              Top 10 Customers
+            </button>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-orange-500/15 pt-4 text-xs text-stone-300">
