@@ -26,3 +26,7 @@ If data still does not load, check the deployed browser's Developer Tools → Ne
 - The page loads data once but does not update live: enable the required tables in the Supabase `supabase_realtime` publication.
 
 The app logs database failures in the browser console with the Supabase error code and message.
+
+## UML diagrams
+
+- [Use case diagram](./docs/use-case-diagram.puml) — PlantUML source for the system's visitor, staff, owner, and external-service interactions.

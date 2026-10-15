@@ -551,27 +551,36 @@ export const FinanceManagementView: React.FC = () => {
 
   // Export to Excel / CSV
   const handleExportExcel = () => {
-    if (filteredTransactions.length === 0) return;
+    if (filteredTransactions.length === 0) {
+      showFormAlert('There are no transactions to export with the current filters.');
+      return;
+    }
 
+    const escapeCsvText = (value: string) => {
+      const safeValue = /^[\t\r ]*[=+\-@]/.test(value) ? `'${value}` : value;
+      return `"${safeValue.replace(/"/g, '""')}"`;
+    };
     const headers = ['Date', 'Flow Type', 'Account / Category', 'Description', 'Payment Method', 'Inflow (PHP)', 'Outflow (PHP)'];
-    const rows = filteredTransactions.map((t) => [
-      `"${t.date || t.createdAt.split('T')[0]}"`,
-      `"${t.flowType.toUpperCase()}"`,
-      `"${t.account || t.category}"`,
-      `"${t.description.replace(/"/g, '""')}"`,
-      `"${t.paymentMethod.toUpperCase()}"`,
-      t.inflow || 0,
-      t.outflow || 0,
+    const rows = filteredTransactions.map((transaction) => [
+      escapeCsvText(transaction.date || transaction.createdAt.split('T')[0]),
+      escapeCsvText(transaction.flowType.toUpperCase()),
+      escapeCsvText(transaction.account || transaction.category),
+      escapeCsvText(transaction.description || ''),
+      escapeCsvText(transaction.paymentMethod.toUpperCase()),
+      String(Number(transaction.inflow) || 0),
+      String(Number(transaction.outflow) || 0),
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = '\uFEFF' + [headers.map(escapeCsvText).join(','), ...rows.map((row) => row.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.href = objectUrl;
     link.setAttribute('download', `EXINS_Transactions_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   };
 
   return (

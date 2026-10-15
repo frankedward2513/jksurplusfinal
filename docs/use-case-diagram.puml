@@ -1,0 +1,69 @@
+@startuml
+title JKsur+ Smart Inventory Management System\nUse Case Diagram
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+actor "Store Owner / Admin" as Owner
+actor "Store Staff" as Staff
+actor "Shop Visitor\n(guest or customer)" as Visitor
+actor "Supabase Auth" as Auth <<external system>>
+actor "Gemini AI Service" as Gemini <<external system>>
+
+rectangle "JKsur+ Smart Inventory Management System" {
+  usecase "Sign in / sign out" as SignIn
+
+  package "Shop Showcase" {
+    usecase "Browse and filter\navailable products" as Browse
+    usecase "Review top customers" as TopCustomers
+  }
+
+  package "Point of Sale" {
+    usecase "Process in-store sale" as ProcessSale
+    usecase "Update product stock" as UpdateStock
+    usecase "Generate sales receipt" as Receipt
+  }
+
+  package "Inventory Management" {
+    usecase "Manage suppliers, categories,\nbales, and products" as ManageInventory
+    usecase "Log sold, returned,\ndamaged, or lost items" as LogItemStatus
+  }
+
+  package "Owner Operations" {
+    usecase "View business dashboard" as Dashboard
+    usecase "Manage expense accounts\nand budgets" as ManageExpenses
+    usecase "Record expense\ndisbursement" as RecordExpense
+    usecase "Review finance\ntransaction history" as FinanceHistory
+    usecase "View sales forecast" as Forecast
+    usecase "Ask inventory and\nexpense assistant" as AskAssistant
+  }
+
+  ProcessSale ..> UpdateStock : <<include>>
+  ProcessSale ..> Receipt : <<include>>
+}
+
+Owner -- SignIn
+Staff -- SignIn
+Auth -- SignIn
+
+Visitor -- Browse
+Owner -- Browse
+Staff -- Browse
+Owner -- TopCustomers
+
+Owner -- ProcessSale
+Staff -- ProcessSale
+Owner -- ManageInventory
+Staff -- ManageInventory
+Owner -- LogItemStatus
+Staff -- LogItemStatus
+
+Owner -- Dashboard
+Owner -- ManageExpenses
+Owner -- RecordExpense
+Owner -- FinanceHistory
+Owner -- Forecast
+Owner -- AskAssistant
+Gemini -- AskAssistant
+@enduml
