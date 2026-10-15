@@ -43,6 +43,14 @@ rectangle "JKsur+ Smart Inventory Management System" {
   ProcessSale ..> Receipt : <<include>>
 }
 
+note bottom of Browse
+Public showcase; no account is required to browse.
+end note
+
+note bottom of ProcessSale
+Sales are entered through the in-store POS; online checkout is not supported.
+end note
+
 Owner -- SignIn
 Staff -- SignIn
 Auth -- SignIn

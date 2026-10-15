@@ -7,27 +7,21 @@ import {
   History,
   Search,
   Download,
-  Filter,
   Calendar,
   Upload,
   Edit2,
   Trash2,
   AlertTriangle,
   CheckCircle,
-  Store,
-  Layers,
   RotateCcw,
-  X,
   Check,
   ArrowUpDown,
   ChevronDown,
   CreditCard,
   ArrowUpRight,
   ArrowDownRight,
-  HelpCircle,
   Eye,
 } from 'lucide-react';
-import { LogItemStatusModal } from './LogItemStatusModal';
 import { ViewProductLostModal } from './ViewProductLostModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { PAGE_SIZE, Pagination } from './Pagination';
@@ -42,7 +36,6 @@ export const FinanceManagementView: React.FC = () => {
     orders,
     itemStatusLogs,
     products,
-    categories,
     addExpenseAccount,
     updateExpenseAccount,
     deleteExpenseAccount,
@@ -176,23 +169,14 @@ export const FinanceManagementView: React.FC = () => {
   // ===================== 3. TRANSACTION HISTORY STATE =====================
   const [historySearch, setHistorySearch] = useState('');
   const [flowFilter, setFlowFilter] = useState<'all' | 'inflow' | 'outflow'>('all');
-  const [channelFilter, setChannelFilter] = useState<'all' | 'pos' | 'disbursement'>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [datePreset, setDatePreset] = useState<'all' | 'today' | 'last7' | 'this_month' | 'custom'>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isViewLostModalOpen, setIsViewLostModalOpen] = useState(false);
 
-  // Product Filter State (to easily filter transactions by product code or name without scrolling)
-  const [selectedProductFilterId, setSelectedProductFilterId] = useState<string | null>(null);
-  const [isProductFilterModalOpen, setIsProductFilterModalOpen] = useState(false);
-  const [productModalSearch, setProductModalSearch] = useState('');
-  const [productModalCategory, setProductModalCategory] = useState('all');
-  const [productModalPage, setProductModalPage] = useState(1);
-
-  // 4 Dropdown state for Transaction History (Channel, Flow, Payment Method, Date)
-  const [openDropdown, setOpenDropdown] = useState<'channel' | 'flow' | 'payment' | 'date' | null>(null);
+  // Dropdown state for Transaction History (Flow, Payment Method, Date)
+  const [openDropdown, setOpenDropdown] = useState<'flow' | 'payment' | 'date' | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -214,13 +198,6 @@ export const FinanceManagementView: React.FC = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
-
-  const getChannelLabel = () => {
-    if (channelFilter === 'all') return 'Channel: All';
-    if (channelFilter === 'pos') return 'Channel: POS';
-    if (channelFilter === 'disbursement') return 'Channel: Disbursements';
-    return 'Channel';
-  };
 
   const getFlowLabel = () => {
     if (flowFilter === 'all') return 'Flow: All';
@@ -256,8 +233,6 @@ export const FinanceManagementView: React.FC = () => {
     flowFilter !== 'all' ||
     paymentFilter !== 'all' ||
     datePreset !== 'all' ||
-    channelFilter !== 'all' ||
-    selectedProductFilterId !== null ||
     historySearch.trim() !== '' ||
     customStart !== '' ||
     customEnd !== '';
@@ -266,47 +241,11 @@ export const FinanceManagementView: React.FC = () => {
     setFlowFilter('all');
     setPaymentFilter('all');
     setDatePreset('all');
-    setChannelFilter('all');
-    setSelectedProductFilterId(null);
     setHistorySearch('');
     setCustomStart('');
     setCustomEnd('');
     setOpenDropdown(null);
   };
-
-  // Selected product object
-  const selectedProductFilter = useMemo(
-    () => products.find((p) => p.id === selectedProductFilterId),
-    [products, selectedProductFilterId]
-  );
-
-  // Filtered products list for product selector modal
-  const modalFilteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (
-        productModalCategory !== 'all' &&
-        p.category?.toLowerCase() !== productModalCategory.toLowerCase()
-      ) {
-        return false;
-      }
-      if (productModalSearch.trim()) {
-        const q = productModalSearch.toLowerCase().trim();
-        const matchName = p.name.toLowerCase().includes(q);
-        const matchCode = p.barcode?.toLowerCase().includes(q);
-        const matchCat = p.category?.toLowerCase().includes(q);
-        if (!matchName && !matchCode && !matchCat) return false;
-      }
-      return true;
-    });
-  }, [products, productModalCategory, productModalSearch]);
-  const visibleModalProducts = modalFilteredProducts.slice(
-    (productModalPage - 1) * PAGE_SIZE,
-    productModalPage * PAGE_SIZE,
-  );
-
-  useEffect(() => {
-    setProductModalPage(1);
-  }, [productModalCategory, productModalSearch]);
 
   const financeTransactions = useMemo<FinanceTransaction[]>(() => {
     const posInflows = transactions.filter((transaction) => transaction.flowType === 'inflow');
@@ -361,51 +300,8 @@ export const FinanceManagementView: React.FC = () => {
       // Flow type filter
       if (flowFilter !== 'all' && tx.flowType !== flowFilter) return false;
 
-      // Channel filter: POS vs Disbursement
-      if (channelFilter === 'pos') {
-        const isPos =
-          tx.category === 'POS Sales' ||
-          tx.account?.toLowerCase().includes('counter');
-        if (!isPos) return false;
-      } else if (channelFilter === 'disbursement') {
-        if (tx.flowType !== 'outflow' && tx.category !== 'Disbursement') return false;
-      }
-
       // Payment method filter
       if (paymentFilter !== 'all' && tx.paymentMethod !== paymentFilter) return false;
-
-      // Product filter by specific Product Code / Name / ID
-      if (selectedProductFilterId) {
-        const prod = products.find((p) => p.id === selectedProductFilterId);
-        if (prod) {
-          const prodCode = prod.barcode?.toLowerCase();
-          const prodName = prod.name.toLowerCase();
-          let matched = false;
-
-          // Check related order items
-          if (tx.orderId) {
-            const ord = orders.find((o) => o.id === tx.orderId);
-            if (ord && Array.isArray(ord.items)) {
-              matched = ord.items.some(
-                (it) =>
-                  it.productId === prod.id ||
-                  it.name?.toLowerCase().includes(prodName) ||
-                  (prod.baleCode && it.baleCode === prod.baleCode)
-              );
-            }
-          }
-
-          // Check transaction description
-          if (!matched && tx.description) {
-            const desc = tx.description.toLowerCase();
-            if (desc.includes(prodName) || (prodCode && desc.includes(prodCode))) {
-              matched = true;
-            }
-          }
-
-          if (!matched) return false;
-        }
-      }
 
       // Search query: checks description, account, category, payment method, order number, product code, product name
       if (historySearch.trim()) {
@@ -486,8 +382,6 @@ export const FinanceManagementView: React.FC = () => {
   }, [
     financeTransactions,
     flowFilter,
-    channelFilter,
-    selectedProductFilterId,
     paymentFilter,
     historySearch,
     datePreset,
@@ -990,16 +884,6 @@ export const FinanceManagementView: React.FC = () => {
       {/* ===================== TAB 3: TRANSACTION HISTORY ===================== */}
       {activeTab === 'history' && (
         <div className="space-y-6">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setIsLogModalOpen(true)}
-              className="py-2 px-3.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-purple-400 hover:text-purple-300 border border-purple-500/30 text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
-              <span>+ Log Lost Item</span>
-            </button>
-          </div>
           {/* Cash Flow Summary KPI Cards: Total Inflow, Total Outflow, Net Operating Outflow/Inflow, Lost */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-5 rounded-2xl glass-panel relative overflow-hidden">
@@ -1093,27 +977,8 @@ export const FinanceManagementView: React.FC = () => {
                 )}
               </div>
 
-              {/* Action Buttons: Filter by Product & Export to Excel */}
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                {/* Filter by Product Button (like Product Inventory Management) */}
-                <button
-                  type="button"
-                  onClick={() => setIsProductFilterModalOpen(true)}
-                  className={`py-2.5 px-4 rounded-xl border font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer shrink-0 ${
-                    selectedProductFilterId
-                      ? 'bg-orange-600 text-white border-orange-500 shadow-md shadow-orange-600/30'
-                      : 'bg-stone-900 hover:bg-stone-800 text-stone-200 hover:text-white border-orange-500/30'
-                  }`}
-                >
-                  <Filter className="w-4 h-4 text-orange-400" />
-                  <span>
-                    {selectedProductFilter
-                      ? `Filter: ${selectedProductFilter.barcode}`
-                      : 'Filter by Product'}
-                  </span>
-                </button>
-
-                {/* Export to Excel button */}
+              {/* Export to Excel button */}
+              <div className="flex items-center gap-2">
                 <button
                   onClick={handleExportExcel}
                   className="py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 hover:text-white border border-orange-500/30 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer shrink-0"
@@ -1124,142 +989,12 @@ export const FinanceManagementView: React.FC = () => {
               </div>
             </div>
 
-            {/* Active Product Filter Chip */}
-            {selectedProductFilter && (
-              <div className="flex items-center justify-between p-2.5 px-3 rounded-2xl bg-gradient-to-r from-orange-950/60 to-amber-950/40 border border-orange-500/40 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-orange-400 font-bold bg-stone-900 px-2 py-0.5 rounded border border-orange-500/30 shrink-0">
-                    {selectedProductFilter.barcode}
-                  </span>
-                  <span className="text-white font-semibold truncate">
-                    {selectedProductFilter.name}
-                  </span>
-                  <span className="text-stone-400 hidden sm:inline">
-                    ({selectedProductFilter.category})
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedProductFilterId(null)}
-                  className="text-stone-400 hover:text-white flex items-center gap-1 text-[11px] font-semibold hover:underline shrink-0 ml-2 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Clear Filter</span>
-                </button>
-              </div>
-            )}
-
-            {/* Filter Controls Row: 4 Clean Dropdown Buttons (Channel, Flow, Payment Method, Date) */}
+            {/* Filter Controls Row: Flow, Payment Method, and Date */}
             <div
               ref={dropdownRef}
               className="flex flex-wrap items-center gap-2.5 text-xs pt-2 border-t border-stone-800/80 relative z-30"
             >
-              {/* 1. CHANNEL DROPDOWN BUTTON */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'channel' ? null : 'channel')}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 border transition cursor-pointer ${
-                    channelFilter === 'pos'
-                      ? 'bg-orange-950/50 text-orange-300 border-orange-500/60 shadow-sm'
-                      : channelFilter === 'disbursement'
-                      ? 'bg-rose-950/50 text-rose-300 border-rose-500/60 shadow-sm'
-                      : openDropdown === 'channel'
-                      ? 'bg-stone-900 text-white border-orange-500'
-                      : 'bg-stone-950 hover:bg-stone-900 text-stone-200 hover:text-white border-stone-800'
-                  }`}
-                >
-                  {channelFilter === 'pos' ? (
-                    <Store className="w-3.5 h-3.5 text-orange-400" />
-                  ) : channelFilter === 'disbursement' ? (
-                    <Receipt className="w-3.5 h-3.5 text-rose-400" />
-                  ) : (
-                    <Layers className="w-3.5 h-3.5 text-orange-400" />
-                  )}
-                  <span>{getChannelLabel()}</span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 text-stone-400 transition-transform duration-200 ${
-                      openDropdown === 'channel' ? 'rotate-180 text-orange-400' : ''
-                    }`}
-                  />
-                </button>
-
-                {/* Channel Dropdown Menu */}
-                {openDropdown === 'channel' && (
-                  <div className="absolute left-0 top-full mt-1.5 w-60 rounded-2xl bg-stone-900 border border-stone-700 shadow-2xl p-1.5 z-50 space-y-1">
-                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                      Channel Selection
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChannelFilter('all');
-                        setOpenDropdown(null);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition cursor-pointer ${
-                        channelFilter === 'all'
-                          ? 'bg-orange-500/20 text-orange-300 font-bold border border-orange-500/30'
-                          : 'text-stone-300 hover:bg-stone-800 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-3.5 h-3.5 text-orange-400" />
-                        <div>
-                          <div>All Channels</div>
-                          <div className="text-[10px] text-stone-400 font-normal">All transaction channels</div>
-                        </div>
-                      </div>
-                      {channelFilter === 'all' && <Check className="w-4 h-4 text-orange-400" />}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChannelFilter('pos');
-                        setOpenDropdown(null);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition cursor-pointer ${
-                        channelFilter === 'pos'
-                          ? 'bg-orange-500/20 text-orange-300 font-bold border border-orange-500/30'
-                          : 'text-stone-300 hover:bg-stone-800 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Store className="w-3.5 h-3.5 text-orange-400" />
-                        <div>
-                          <div>POS (Face-to-Face)</div>
-                          <div className="text-[10px] text-stone-400 font-normal">Physical in-store register sales</div>
-                        </div>
-                      </div>
-                      {channelFilter === 'pos' && <Check className="w-4 h-4 text-orange-400" />}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChannelFilter('disbursement');
-                        setOpenDropdown(null);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition cursor-pointer ${
-                        channelFilter === 'disbursement'
-                          ? 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30'
-                          : 'text-stone-300 hover:bg-stone-800 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Receipt className="w-3.5 h-3.5 text-rose-400" />
-                        <div>
-                          <div>Disbursements</div>
-                          <div className="text-[10px] text-stone-400 font-normal">Operating costs & money out</div>
-                        </div>
-                      </div>
-                      {channelFilter === 'disbursement' && <Check className="w-4 h-4 text-rose-400" />}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* 2. FLOW DROPDOWN BUTTON */}
+              {/* Flow dropdown button */}
               <div className="relative">
                 <button
                   type="button"
@@ -1363,7 +1098,7 @@ export const FinanceManagementView: React.FC = () => {
                 )}
               </div>
 
-              {/* 3. PAYMENT METHOD DROPDOWN BUTTON */}
+              {/* Payment method dropdown button */}
               <div className="relative">
                 <button
                   type="button"
@@ -1729,201 +1464,11 @@ export const FinanceManagementView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal to Log Return, Damaged, or Lost with Product Search & Filter */}
-      <LogItemStatusModal
-        isOpen={isLogModalOpen}
-        onClose={() => setIsLogModalOpen(false)}
-      />
-
       {/* Modal to View Lost Products and Update if Found */}
       <ViewProductLostModal
         isOpen={isViewLostModalOpen}
         onClose={() => setIsViewLostModalOpen(false)}
-        onOpenLogLostModal={() => setIsLogModalOpen(true)}
       />
-
-      {/* Modal to Filter Ledger by Product (Like Product Inventory Management) */}
-      {isProductFilterModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <div className="relative w-full max-w-xl bg-stone-900/95 border border-orange-500/30 rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-xl text-stone-100 max-h-[90vh] flex flex-col my-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-orange-500/20 shrink-0">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[11px] font-semibold uppercase tracking-wider mb-1">
-                  <Filter className="w-3 h-3" />
-                  <span>Product Inventory Filter</span>
-                </div>
-                <h3 className="text-lg font-bold text-white">Filter Ledger by Product</h3>
-                <p className="text-xs text-stone-400">
-                  Search item code or name to instantly isolate transaction history without scrolling
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsProductFilterModalOpen(false)}
-                className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto py-3.5 space-y-3">
-              {/* Search Bar */}
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                <input
-                  type="text"
-                  placeholder="Search Product Code (e.g. EX-123456), Name, or Category..."
-                  value={productModalSearch}
-                  onChange={(e) => setProductModalSearch(e.target.value)}
-                  className="w-full pl-10 pr-16 py-2.5 rounded-xl bg-stone-950 border border-orange-500/30 text-xs sm:text-sm text-stone-100 placeholder:text-stone-500 focus:outline-none focus:border-orange-500"
-                />
-                {productModalSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setProductModalSearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white text-xs cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Category Filter Buttons */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-                <button
-                  type="button"
-                  onClick={() => setProductModalCategory('all')}
-                  className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition cursor-pointer text-xs ${
-                    productModalCategory === 'all'
-                      ? 'bg-orange-600 text-white shadow-md'
-                      : 'bg-stone-950 border border-stone-800 text-stone-400 hover:text-white'
-                  }`}
-                >
-                  All ({products.length})
-                </button>
-                {categories.map((c) => {
-                  const count = products.filter(
-                    (p) => p.category?.toLowerCase() === c.name?.toLowerCase()
-                  ).length;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setProductModalCategory(c.name)}
-                      className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition cursor-pointer text-xs flex items-center gap-1.5 ${
-                        productModalCategory.toLowerCase() === c.name.toLowerCase()
-                          ? 'bg-orange-600 text-white shadow-md'
-                          : 'bg-stone-950 border border-stone-800 text-stone-400 hover:text-white'
-                      }`}
-                    >
-                      <span>{c.name}</span>
-                      <span className="text-[10px] opacity-75 font-mono">({count})</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Product Match List */}
-              <div className="space-y-1.5 pr-1 border border-stone-800 rounded-2xl p-2 bg-stone-950/60">
-                {modalFilteredProducts.length === 0 ? (
-                  <p className="text-center py-8 text-xs text-stone-400">
-                    No products found matching "{productModalSearch}". Try searching product code (e.g. EX-...) or name.
-                  </p>
-                ) : (
-                  visibleModalProducts.map((p) => {
-                    const isSelected = selectedProductFilterId === p.id;
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => {
-                          setSelectedProductFilterId(p.id);
-                          setIsProductFilterModalOpen(false);
-                        }}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition ${
-                          isSelected
-                            ? 'bg-orange-950/70 border-orange-500 text-white'
-                            : 'bg-stone-900/80 hover:bg-stone-800/80 border-stone-800 hover:border-orange-500/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {p.imageUrl ? (
-                            <img
-                              src={p.imageUrl}
-                              alt={p.name}
-                              className="w-10 h-10 rounded-lg object-cover border border-stone-800 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg bg-stone-800 flex items-center justify-center text-[10px] text-stone-400 shrink-0">
-                              Item
-                            </div>
-                          )}
-                          <div className="truncate">
-                            <p className="font-semibold text-white text-xs truncate">{p.name}</p>
-                            <div className="flex items-center gap-2 text-[10px] text-stone-400 mt-0.5">
-                              <span className="font-mono text-orange-400 font-bold bg-stone-950 px-1.5 py-0.5 rounded border border-stone-800">
-                                {p.barcode}
-                              </span>
-                              <span>{p.category}</span>
-                              <span className="text-emerald-400 font-mono">
-                                ₱{p.sellingPrice.toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="shrink-0 flex items-center gap-2">
-                          <span className="text-[10px] text-stone-400 font-mono">
-                            {p.availableQuantity} in stock
-                          </span>
-                          {isSelected && (
-                            <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 font-bold text-[10px] flex items-center gap-1 border border-emerald-500/30">
-                              <Check className="w-3 h-3" />
-                              <span>Active</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-              <Pagination
-                totalItems={modalFilteredProducts.length}
-                currentPage={productModalPage}
-                onPageChange={setProductModalPage}
-              />
-            </div>
-
-            {/* Modal Footer */}
-            <div className="pt-3 border-t border-stone-800 flex items-center justify-between gap-2 shrink-0">
-              {selectedProductFilterId ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedProductFilterId(null);
-                    setIsProductFilterModalOpen(false);
-                  }}
-                  className="py-2 px-3.5 rounded-xl border border-red-500/30 bg-red-950/40 hover:bg-red-900/50 text-red-300 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Clear Active Filter</span>
-                </button>
-              ) : (
-                <span className="text-xs text-stone-500">Click any product to isolate in ledger</span>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsProductFilterModalOpen(false)}
-                className="py-2 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold transition cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Confirmation Modal to prevent accidental deletions */}
       <ConfirmDeleteModal
