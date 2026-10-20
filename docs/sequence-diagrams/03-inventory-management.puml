@@ -1,0 +1,76 @@
+@startuml
+title JKsur+ Sequence 3 - Inventory Management
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin / Staff" as User
+participant "Inventory View" as Inventory
+participant "Item Status Modal" as Modal
+participant "Store Context" as Store
+database "Supabase Database" as DB
+
+User -> Inventory: Choose Suppliers, Categories,\nBales, or Products
+Inventory -> Store: Read current inventory state
+Store --> Inventory: Return selected records
+User -> Inventory: Enter or edit record details
+Inventory -> Inventory: Validate required fields
+
+alt Add a record
+  Inventory -> Store: addSupplier / addCategory /\naddBale / addProduct
+  Store -> Store: Add record to local state
+  Store -> DB: setDoc(collection, new record)
+  DB --> Store: Write result
+else Edit a record
+  Inventory -> Store: updateSupplier / updateCategory /\nupdateBale / updateProduct
+  Store -> Store: Update record in local state
+  Store -> DB: updateDoc(record, changed fields)
+  DB --> Store: Write result
+else Delete a record
+  Inventory --> User: Request deletion confirmation
+  User -> Inventory: Confirm deletion
+  Inventory -> Store: deleteSupplier / deleteCategory /\ndeleteBale / deleteProduct
+  Store -> Store: Remove record from local state
+  Store -> DB: deleteDoc(record)
+  DB --> Store: Write result
+end
+
+Store --> Inventory: Publish updated state
+Inventory --> User: Refresh inventory list
+
+User -> Inventory: Choose Log Item Status
+Inventory -> Modal: Open status form
+User -> Modal: Select product, status, quantity,\nand optional notes
+Modal -> Modal: Validate status details
+Modal -> Store: logItemStatus(status details)
+Store -> Store: Add status log to local state
+Store -> DB: setDoc(item_logs, status log)
+DB --> Store: Write result
+
+opt Stock adjustment is enabled
+  alt Item returned
+    Store -> Store: Increase available quantity
+  else Item damaged or lost
+    Store -> Store: Decrease available quantity
+  end
+  Store -> DB: updateDoc(products, available quantity)
+  DB --> Store: Write result
+end
+
+Store --> Inventory: Publish updated logs and stock
+Inventory --> User: Display updated inventory
+
+opt Mark a lost item as found
+  User -> Inventory: Update lost-item log and restore quantity
+  Inventory -> Store: updateItemStatusLog(restoreStock)
+  Store -> DB: updateDoc(item_logs, changed status)
+  Store -> Store: Add restored quantity to product stock
+  Store -> DB: updateDoc(products, available quantity)
+  DB --> Store: Write result
+end
+@enduml

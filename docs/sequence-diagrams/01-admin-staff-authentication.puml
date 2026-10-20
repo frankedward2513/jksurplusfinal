@@ -1,0 +1,62 @@
+@startuml
+title JKsur+ Sequence 1 - Admin and Staff Sign In and Sign Out
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin / Staff" as User
+participant "Web App / Navbar" as App
+participant "Sign-In Modal" as SignIn
+participant "Store Context" as Store
+participant "Supabase Auth" as Auth
+
+User -> App: Open web application
+App --> User: Display public shop
+User -> App: Choose Staff / Owner Sign In
+App -> SignIn: Open sign-in modal
+User -> SignIn: Enter email and password
+SignIn -> SignIn: Validate email and password format
+SignIn -> Store: loginAs(email, password)
+Store -> Auth: signInWithPassword(email, password)
+
+alt Credentials rejected
+  Auth --> Store: Authentication error
+  Store --> SignIn: Return error
+  SignIn --> User: Display sign-in error
+  User -> SignIn: Correct credentials and retry
+else Credentials accepted
+  Auth --> Store: Authenticated user and role metadata
+  Store -> Store: Determine app role from email and metadata
+  Store -> App: Set authenticated user
+  alt Owner / admin account
+    App -> App: Select Dashboard as default view
+    App --> User: Display admin dashboard and admin navigation
+  else Staff account
+    App -> App: Select POS as default view
+    App --> User: Display staff navigation and POS
+  else Other authenticated account
+    App -> App: Select public Showcase as default view
+    App --> User: Display customer view
+  end
+end
+
+User -> App: Select Sign Out
+App -> Store: logout()
+Store -> Auth: signOut()
+alt Sign-out succeeds
+  Auth --> Store: Session ended
+  Store -> Store: Set current user to Guest
+  Store -> Store: Remove cached user profile
+  Store --> App: Sign-out complete
+  App --> User: Show public shop navigation
+else Sign-out fails
+  Auth --> Store: Sign-out error
+  Store --> App: Return error
+  App --> User: Display sign-out failure alert
+end
+@enduml

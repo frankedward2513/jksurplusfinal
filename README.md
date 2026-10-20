@@ -30,3 +30,6 @@ The app logs database failures in the browser console with the Supabase error co
 ## UML diagrams
 
 - [Use case diagram](./docs/use-case-diagram.puml) — PlantUML source for the system's visitor, staff, owner, and external-service interactions.
+- [Customer activity diagram](./docs/customer-activity-diagram.puml) — PlantUML source for viewing and browsing products, searching, and filtering the public shop showcase by category and maximum budget.
+- [Admin activity diagram](./docs/admin-activity-diagram.puml) — PlantUML activity diagram for the store owner's sign-in, dashboard, inventory, POS, finance, forecasting, AI assistant, and shop showcase workflows.
+- [Sequence diagrams](./docs/sequence-diagrams/) — Eight separate PlantUML files covering combined admin/staff sign-in and sign-out, showcase browsing, inventory management (records and item-status/stock changes), POS sales, finance management (accounts, budgets, expenses, and transactions), dashboard, sales forecasting with Supabase data fetches, and the AI assistant. Render one `.puml` file at a time to avoid oversized web-render requests.

@@ -1,0 +1,76 @@
+@startuml
+title JKsur+ Sequence 5 - Finance Management
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin" as User
+participant "Finance View" as Finance
+participant "Store Context" as Store
+database "Supabase Database" as DB
+participant "Browser" as Browser
+
+User -> Finance: Open Expense Accounts
+Finance -> Store: Read expense accounts
+Store --> Finance: Current accounts and budgets
+User -> Finance: Enter or edit account name,\nmonthly budget, and details
+Finance -> Finance: Validate name and positive budget
+
+alt Add account
+  Finance -> Store: addExpenseAccount(account details)
+  Store -> Store: Add account to local state
+  Store -> DB: setDoc(expense_accounts, account)
+else Edit account
+  Finance -> Store: updateExpenseAccount(id, changes)
+  Store -> Store: Update local account state
+  Store -> DB: updateDoc(expense_accounts, changes)
+else Delete account
+  Finance --> User: Request deletion confirmation
+  User -> Finance: Confirm deletion
+  Finance -> Store: deleteExpenseAccount(id)
+  Store -> Store: Remove account from local state
+  Store -> DB: deleteDoc(expense_accounts, id)
+end
+DB --> Store: Write result
+Store --> Finance: Publish updated accounts
+Finance --> User: Display updated account list
+
+User -> Finance: Open Record Expense
+Finance -> Store: Read expense accounts
+Store --> Finance: Available accounts and budgets
+User -> Finance: Enter account, amount, date,\npayment method, description
+opt Attach receipt image
+  User -> Finance: Select image
+  Finance -> Browser: Read image as data URL
+  Browser --> Finance: Receipt image data
+end
+Finance -> Finance: Validate account and positive amount
+Finance -> Store: addExpense(expense details)
+Store -> Store: Create expense and matching outflow transaction
+Store -> DB: setDoc(expenses, expense)
+Store -> DB: setDoc(transactions, outflow)
+DB --> Store: Write results
+Store --> Finance: Publish expense and transaction
+Finance --> User: Switch to Transaction History
+
+User -> Finance: Search, filter, or export transaction history
+Finance -> Finance: Filter current transaction data\nor generate spreadsheet download
+Finance --> User: Display results or download export
+
+opt Delete a transaction
+  User -> Finance: Select delete and confirm
+  Finance -> Store: deleteTransaction(transaction id)
+  Store -> DB: deleteDoc(transactions, id)
+  opt Transaction is linked to an expense or order
+    Store -> DB: deleteDoc(linked expense or order)
+  end
+  DB --> Store: Write results
+  Store --> Finance: Publish updated history
+  Finance --> User: Display updated transactions
+end
+@enduml

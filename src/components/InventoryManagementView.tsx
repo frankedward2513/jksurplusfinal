@@ -9,9 +9,7 @@ import {
   Search,
   Edit2,
   Trash2,
-  Upload,
-  RefreshCw,
-  Sparkles,
+  Upload, 
   HelpCircle,
 } from 'lucide-react';
 import { LogItemStatusModal } from './LogItemStatusModal';
@@ -162,21 +160,6 @@ export const InventoryManagementView: React.FC = () => {
     setBaleQuantity(b.quantityPurchase);
     setBaleDesc(b.description || '');
     setActiveTab('bales');
-  };
-
-  // Helper to load standard ukay categories if none exist yet
-  const handleLoadStandardCategories = async () => {
-    const defaults = [
-      { name: 'Jackets', desc: 'Denim, leather, windbreakers, varsity jackets', color: '#ea580c' },
-      { name: 'Shoes', desc: 'Sneakers, boots, loafers, leather shoes', color: '#f59e0b' },
-      { name: 'Caps', desc: 'Snapbacks, vintage caps, beanies, bucket hats', color: '#10b981' },
-      { name: 'Hoodies', desc: 'Vintage pullovers, zip-up hoodies, sweaters', color: '#3b82f6' },
-      { name: 'Pants', desc: 'Cargo pants, chinos, denim jeans, trousers', color: '#8b5cf6' },
-    ];
-    for (const d of defaults) {
-      await addCategory({ name: d.name, description: d.desc, color: d.color });
-    }
-    setBaleCategory('Jackets');
   };
 
   // ===================== 2. CATEGORY MANAGEMENT STATE =====================
@@ -675,6 +658,8 @@ export const InventoryManagementView: React.FC = () => {
                 ))}
               </div>
             )}
+
+            {/* Pagination */}
             <Pagination
               totalItems={suppliers.length}
               currentPage={supplierPage}
@@ -703,9 +688,11 @@ export const InventoryManagementView: React.FC = () => {
                 </button>
               )}
             </div>
-
+            
+            {/* Input Fields */}
             <form onSubmit={handleSaveCategory} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                {/* Category Name */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Category Name *</label>
                   <input
@@ -717,7 +704,7 @@ export const InventoryManagementView: React.FC = () => {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
                 </div>
-
+                {/* Description */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Description</label>
                   <input
@@ -728,7 +715,7 @@ export const InventoryManagementView: React.FC = () => {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
                 </div>
-
+                {/* Category Accent Color */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Category Accent Color</label>
                   <div className="flex items-center gap-3">
@@ -748,7 +735,7 @@ export const InventoryManagementView: React.FC = () => {
                   </div>
                 </div>
               </div>
-
+              {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
                   type="submit"
@@ -756,17 +743,6 @@ export const InventoryManagementView: React.FC = () => {
                 >
                   {editingCategoryId ? 'Update Category' : 'Add Category'}
                 </button>
-
-                {categories.length === 0 && (
-                  <button
-                    type="button"
-                    onClick={handleLoadStandardCategories}
-                    className="w-full sm:w-auto py-3 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 border border-orange-500/30 text-orange-400 font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-orange-400" />
-                    <span>⚡ Quick-Add Default Categories (Jackets, Shoes, Caps, Hoodies, Pants)</span>
-                  </button>
-                )}
               </div>
             </form>
           </div>
@@ -778,85 +754,81 @@ export const InventoryManagementView: React.FC = () => {
               <span className="text-xs text-stone-400">{categories.length} total categories</span>
             </div>
 
-            {categories.length === 0 ? (
-              <div className="p-8 text-center rounded-3xl glass-panel text-xs text-stone-400 space-y-3">
-                <p>No product categories added yet.</p>
-                <button
-                  type="button"
-                  onClick={handleLoadStandardCategories}
-                  className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs shadow transition cursor-pointer"
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              {visibleCategories.map((cat) => (
+                <div
+                  key={cat.id}
+                  className="p-5 rounded-2xl glass-panel glass-panel-hover flex flex-col justify-between border border-orange-500/20 space-y-4 group"
                 >
-                  ⚡ Load Standard Categories
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                {visibleCategories.map((cat) => (
-                  <div
-                    key={cat.id}
-                    className="p-5 rounded-2xl glass-panel glass-panel-hover flex flex-col justify-between border border-orange-500/20 space-y-4 group"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="w-7 h-7 rounded-full shadow-md shrink-0 border border-white/20 flex items-center justify-center text-white text-[10px] font-bold"
-                            style={{ backgroundColor: cat.color || '#ea580c' }}
-                          >
-                            •
-                          </span>
-                          <div>
-                            <h4 className="text-base font-bold text-white group-hover:text-orange-300 transition">
-                              {cat.name}
-                            </h4>
-                            <p className="text-xs text-stone-400 line-clamp-2">
-                              {cat.description || 'Thrift category'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => startEditCategory(cat)}
-                            className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
-                            title="Edit Category"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDeleteTarget({
-                                type: 'category',
-                                id: cat.id,
-                                title: 'Delete Product Category?',
-                                message: 'Are you sure you want to delete this category? If you clicked this by accident, click Cancel to keep it.',
-                                itemName: cat.name,
-                                details: [
-                                  { label: 'Current In-Stock Items', value: `${cat.totalInStock || 0} items` },
-                                  { label: 'Description', value: cat.description || 'N/A' },
-                                ],
-                              });
-                            }}
-                            className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
-                            title="Delete Category"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      {/* Category Color Indicator */}
+                      <div className="flex items-center gap-3">
+                        {/* Category Color */}
+                        <span
+                          className="w-7 h-7 rounded-full shadow-md shrink-0 border border-white/20 flex items-center justify-center text-white text-[10px] font-bold"
+                          style={{ backgroundColor: cat.color || '#ea580c' }}
+                        >
+                        </span>
+                        <div>
+                          {/* Category Name */}
+                          <h4 className="text-base font-bold text-white group-hover:text-orange-300 transition">
+                            {cat.name}
+                          </h4>
+                          {/* Category Description */}
+                          <p className="text-xs text-stone-400 line-clamp-2">
+                            {cat.description || 'Thrift category'}
+                          </p>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="p-3 rounded-xl bg-stone-950/70 border border-orange-500/30 flex items-center justify-between text-xs">
-                      <span className="text-stone-400">Total In Stock:</span>
-                      <span className="font-bold text-emerald-400 font-mono">
-                        {cat.totalInStock || 0} items
-                      </span>
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => startEditCategory(cat)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
+                          title="Edit Category"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteTarget({
+                              type: 'category',
+                              id: cat.id,
+                              title: 'Delete Product Category?',
+                              message: 'Are you sure you want to delete this category? If you clicked this by accident, click Cancel to keep it.',
+                              itemName: cat.name,
+                              details: [
+                                { label: 'Current In-Stock Items', value: `${cat.totalInStock || 0} items` },
+                                { label: 'Description', value: cat.description || 'N/A' },
+                              ],
+                            });
+                          }}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  
+                  {/* Total In Stock */}
+                  <div className="p-3 rounded-xl bg-stone-950/70 border border-orange-500/30 flex items-center justify-between text-xs">
+                    <span className="text-stone-400">Total In Stock:</span>
+                    <span className="font-bold text-emerald-400 font-mono">
+                      {cat.totalInStock || 0} items
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
             <Pagination
               totalItems={categories.length}
               currentPage={categoryPage}
@@ -869,7 +841,6 @@ export const InventoryManagementView: React.FC = () => {
       {/* ===================== TAB 3: BALE MANAGEMENT (Swapped to position 3) ===================== */}
       {activeTab === 'bales' && (
         <div className="space-y-6">
-          {/* Form */}
           <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
@@ -887,6 +858,7 @@ export const InventoryManagementView: React.FC = () => {
               )}
             </div>
 
+            {/* Input Fields */}
             <form onSubmit={handleSaveBale} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
                 {/* Bale Name */}
@@ -904,15 +876,8 @@ export const InventoryManagementView: React.FC = () => {
 
                 {/* Bale Code (Auto-generated) */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1 flex items-center justify-between">
-                    <span>Bale Code (Auto-Generated)</span>
-                    <button
-                      type="button"
-                      onClick={() => setBaleCode(generateBaleCode())}
-                      className="text-orange-400 hover:text-orange-300 flex items-center gap-1 font-mono cursor-pointer"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Regenerate
-                    </button>
+                  <label className="block font-medium text-stone-300 mb-1">
+                    Bale Code (Auto-Generated)
                   </label>
                   <input
                     type="text"
@@ -950,19 +915,6 @@ export const InventoryManagementView: React.FC = () => {
                       <option value={baleCategory}>{baleCategory}</option>
                     )}
                   </select>
-
-                  {categories.length === 0 && (
-                    <div className="mt-2 p-2 rounded-xl bg-orange-950/40 border border-orange-500/30 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-stone-300">No categories added yet.</span>
-                      <button
-                        type="button"
-                        onClick={handleLoadStandardCategories}
-                        className="px-2 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold text-[10px] whitespace-nowrap cursor-pointer transition"
-                      >
-                        ⚡ Load Categories
-                      </button>
-                    </div>
-                  )}
                 </div>
 
                 {/* Select Supplier */}

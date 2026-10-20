@@ -1,0 +1,154 @@
+@startuml
+' Print/export in portrait on Long Bond paper (8.5 x 13 in), fit to one page.
+title JKsur+ Smart Inventory Management System\nAdmin Activity Diagram - Long Bond
+
+skinparam shadowing false
+skinparam dpi 300
+skinparam backgroundColor black
+skinparam activityBackgroundColor white
+skinparam activityBorderColor white
+skinparam activityFontColor black
+skinparam activityPadding 16
+skinparam activityDiamondBackgroundColor white
+skinparam activityDiamondBorderColor white
+skinparam activityDiamondFontColor black
+skinparam activityStartColor white
+skinparam activityEndColor white
+skinparam arrowColor white
+skinparam swimlaneBorderColor white
+skinparam swimlaneTitleBackgroundColor #222222
+skinparam swimlaneTitleFontColor white
+
+|Admin / User|
+start
+:Open Web Application;
+
+|System|
+:Display Public Showcase Shop;
+
+|Admin / User|
+:Select Staff / Owner Sign In;
+:Enter Email and Password;
+
+|System|
+repeat
+  :Validate Email and Password;
+  if (Credentials invalid?) then (yes)
+    :Display Sign-in Error;
+    |Admin / User|
+    :Re-enter Email and Password;
+    |System|
+  endif
+repeat while (Credentials invalid?) is (yes) not (no)
+
+|System|
+:Determine Account Role;
+if (Admin / owner account?) then (yes)
+  :Display Admin Dashboard;
+else (no)
+  :Display Role-specific Non-admin View;
+  stop
+endif
+
+repeat
+  |Admin / User|
+  :Select Admin Module;
+
+  if (Dashboard?) then (yes)
+    |Admin / User|
+    :Select Date Range;
+    |System|
+    :View Sales, Expenses, Profits,\nInventory Assets, Customers,\nand Monthly Performance;
+
+  elseif (Inventory Management?) then (yes)
+    |Admin / User|
+    :Manage Suppliers, Categories,\nBales, and Products;
+    :Add, Edit, or Delete Records;
+    if (Record Lost Items?) then (yes)
+      :Select Product and Quantity;
+      |System|
+      :Record Loss and Deduct Stock;
+    else (no)
+      |System|
+      :Save Inventory Changes;
+    endif
+
+  elseif (Point of Sale?) then (yes)
+    |Admin / User|
+    :Find Products by Name or Barcode;
+    :Build Sale Cart and Set Quantities;
+    |System|
+    :Check Product Availability;
+    if (Requested Quantities In Stock?) then (yes)
+      |Admin / User|
+      :Enter Sale Date and Customer Name;
+      :Optionally Apply Discount;
+      :Choose Cash or GCash;
+      :Enter Amount Tendered;
+      |System|
+      :Validate Sale Details and Payment;
+      if (Sale Details and Payment Valid?) then (yes)
+        :Save Sale and Payment;
+        :Deduct Sold Stock and Update\nCustomer Purchase Summary;
+        :Generate Receipt;
+        |Admin / User|
+        :View or Print Receipt;
+      else (no)
+        |Admin / User|
+        :Correct Sale Details;
+      endif
+    else (no)
+      |Admin / User|
+      :Adjust Cart or Remove\nUnavailable Products;
+    endif
+
+  elseif (Finance Management?) then (yes)
+    |Admin / User|
+    if (Manage Expense Accounts?) then (yes)
+      :Add, Edit, or Delete Expense Accounts;
+      :Set Monthly Budgets;
+      |System|
+      :Save Account Changes;
+    elseif (Record Expense?) then (yes)
+      :Enter Account, Amount, Date,\nPayment Method, and Description;
+      :Optionally Attach Receipt;
+      |System|
+      :Save Expense and Outflow Transaction;
+    else (Review Transactions)
+      |System|
+      :Display Transaction History;
+      |Admin / User|
+      :Search and Filter Transaction History;
+      :Optionally Export or Delete Transactions;
+    endif
+
+  elseif (Sales Forecast?) then (yes)
+    |Admin / User|
+    :Choose Product Category and Forecast Horizon;
+    |System|
+    :View Actual and Predicted Sales;
+
+  elseif (AI Assistant?) then (yes)
+    |Admin / User|
+    :Ask an Inventory or Expense Question;
+    |System|
+    :View Answer Based on Store Data;
+
+  else (Showcase Shop)
+    |Admin / User|
+    :Browse and Search Products;
+    :Filter by Category and Maximum Budget;
+    :Optionally Review Top Customers;
+    |System|
+    :Display Matching Products or Customers;
+  endif
+
+  |Admin / User|
+repeat while (Continue Using the System?) is (yes) not (no)
+
+|Admin / User|
+:Sign Out;
+|System|
+:End Admin Session;
+stop
+@enduml

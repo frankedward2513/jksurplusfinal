@@ -1,0 +1,38 @@
+﻿@startuml
+title JKsur+ Sequence 2 - Browse Showcase and Review Top Customers
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Visitor / Admin / Staff" as User
+participant "Showcase View" as Shop
+participant "Store Context" as Store
+database "Supabase Database" as DB
+
+note over Store,DB
+The app subscribes to product, category, and order data when it starts.
+The showcase filters this already-loaded data in the browser.
+end note
+
+Store -> DB: Read products, categories, and orders;\nsubscribe to realtime changes
+DB --> Store: Initial rows and later data updates
+User -> Shop: Open Browse Clothing
+Shop -> Store: Read products and categories
+Store --> Shop: Current product and category state
+User -> Shop: Search, choose category,\nand/or set maximum price
+Shop -> Shop: Filter products in memory
+Shop --> User: Display matching products
+
+opt Review top customers
+  User -> Shop: Select Top 10 Customers
+  Shop -> Shop: Choose month or custom date range
+  Shop -> Shop: Aggregate non-cancelled orders\nand exclude walk-in customers
+  Shop -> Shop: Sort by total spent and keep top ten
+  Shop --> User: Display top customers for selected dates
+end
+@enduml

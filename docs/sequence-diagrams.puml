@@ -1,0 +1,431 @@
+' Combined source for local rendering. For web rendering, use one of the
+' individual diagrams in docs/sequence-diagrams/ to keep request URLs small.
+@startuml
+title JKsur+ Sequence 1 - Admin and Staff Sign In and Sign Out
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin / Staff" as User
+participant "Web App" as App
+participant "Sign-In Modal" as SignIn
+participant "Store Context" as Store
+participant "Supabase Auth" as Auth
+
+User -> App: Open web application
+App --> User: Display public shop
+User -> App: Choose Staff / Owner Sign In
+App -> SignIn: Open sign-in modal
+User -> SignIn: Enter email and password
+SignIn -> SignIn: Validate email and password format
+SignIn -> Store: loginAs(email, password)
+Store -> Auth: signInWithPassword(email, password)
+
+alt Credentials rejected
+  Auth --> Store: Authentication error
+  Store --> SignIn: Return error
+  SignIn --> User: Display sign-in error
+  User -> SignIn: Correct credentials and retry
+else Credentials accepted
+  Auth --> Store: Authenticated user and role metadata
+  Store -> Store: Determine app role from email and metadata
+  Store -> App: Set authenticated user
+  alt Owner / admin account
+    App -> App: Select Dashboard as default view
+    App --> User: Display admin dashboard and admin navigation
+  else Staff account
+    App -> App: Select POS as default view
+    App --> User: Display staff navigation and POS
+  else Other authenticated account
+    App -> App: Select public Showcase as default view
+    App --> User: Display customer view
+  end
+end
+
+User -> App: Select Sign Out
+App -> Store: logout()
+Store -> Auth: signOut()
+alt Sign-out succeeds
+  Auth --> Store: Session ended
+  Store -> Store: Set current user to Guest
+  Store -> Store: Remove cached user profile
+  Store --> App: Sign-out complete
+  App --> User: Show public shop navigation
+else Sign-out fails
+  Auth --> Store: Sign-out error
+  Store --> App: Return error
+  App --> User: Display sign-out failure alert
+end
+@enduml
+
+@startuml
+title JKsur+ Sequence 2 - Browse Showcase and Review Top Customers
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Visitor / Admin / Staff" as User
+participant "Showcase View" as Shop
+participant "Store Context" as Store
+database "Supabase Database" as DB
+
+note over Store,DB
+The app subscribes to product, category, and order data when it starts.
+The showcase filters this already-loaded data in the browser.
+end note
+
+Store -> DB: Read products, categories, and orders;\nsubscribe to realtime changes
+DB --> Store: Initial rows and later data updates
+User -> Shop: Open Browse Clothing
+Shop -> Store: Read products and categories
+Store --> Shop: Current product and category state
+User -> Shop: Search, choose category,\nand/or set maximum price
+Shop -> Shop: Filter products in memory
+Shop --> User: Display matching products
+
+opt Review top customers
+  User -> Shop: Select Top 10 Customers
+  Shop -> Shop: Choose month or custom date range
+  Shop -> Shop: Aggregate non-cancelled orders\nand exclude walk-in customers
+  Shop -> Shop: Sort by total spent and keep top ten
+  Shop --> User: Display top customers for selected dates
+end
+@enduml
+
+@startuml
+title JKsur+ Sequence 3 - Inventory Management
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin / Staff" as User
+participant "Inventory View" as Inventory
+participant "Item Status Modal" as Modal
+participant "Store Context" as Store
+database "Supabase Database" as DB
+
+User -> Inventory: Choose Suppliers, Categories,\nBales, or Products
+Inventory -> Store: Read current inventory state
+Store --> Inventory: Return selected records
+User -> Inventory: Enter or edit record details
+Inventory -> Inventory: Validate required fields
+
+alt Add a record
+  Inventory -> Store: addSupplier / addCategory /\naddBale / addProduct
+  Store -> Store: Add record to local state
+  Store -> DB: setDoc(collection, new record)
+  DB --> Store: Write result
+else Edit a record
+  Inventory -> Store: updateSupplier / updateCategory /\nupdateBale / updateProduct
+  Store -> Store: Update record in local state
+  Store -> DB: updateDoc(record, changed fields)
+  DB --> Store: Write result
+else Delete a record
+  Inventory --> User: Request deletion confirmation
+  User -> Inventory: Confirm deletion
+  Inventory -> Store: deleteSupplier / deleteCategory /\ndeleteBale / deleteProduct
+  Store -> Store: Remove record from local state
+  Store -> DB: deleteDoc(record)
+  DB --> Store: Write result
+end
+
+Store --> Inventory: Publish updated state
+Inventory --> User: Refresh inventory list
+
+User -> Inventory: Choose Log Item Status
+Inventory -> Modal: Open status form
+User -> Modal: Select product, status, quantity,\nand optional notes
+Modal -> Modal: Validate status details
+Modal -> Store: logItemStatus(status details)
+Store -> Store: Add status log to local state
+Store -> DB: setDoc(item_logs, status log)
+DB --> Store: Write result
+
+opt Stock adjustment is enabled
+  alt Item returned
+    Store -> Store: Increase available quantity
+  else Item damaged or lost
+    Store -> Store: Decrease available quantity
+  end
+  Store -> DB: updateDoc(products, available quantity)
+  DB --> Store: Write result
+end
+
+Store --> Inventory: Publish updated logs and stock
+Inventory --> User: Display updated inventory
+
+opt Mark a lost item as found
+  User -> Inventory: Update lost-item log and restore quantity
+  Inventory -> Store: updateItemStatusLog(restoreStock)
+  Store -> DB: updateDoc(item_logs, changed status)
+  Store -> Store: Add restored quantity to product stock
+  Store -> DB: updateDoc(products, available quantity)
+  DB --> Store: Write result
+end
+@enduml
+@startuml
+title JKsur+ Sequence 4 - Complete an In-Store POS Sale
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin / Staff" as User
+participant "POS View" as POS
+participant "Store Context" as Store
+database "Supabase Database" as DB
+participant "Receipt Modal" as Receipt
+participant "Print Dialog" as Print
+
+User -> POS: Search by product name or barcode
+POS -> Store: Read product list
+Store --> POS: Current products and stock quantities
+User -> POS: Add products and set quantities
+POS -> POS: Check availability and calculate subtotal
+User -> POS: Enter customer, sale date,\ndiscount, payment method, and tendered amount
+POS -> POS: Validate cart, discount, date,\nand sufficient payment
+
+alt Invalid sale details or insufficient payment
+  POS --> User: Display validation message
+  User -> POS: Correct sale details
+else Valid sale
+  POS -> Store: completePosSale(cart and payment details)
+  Store -> Store: Create completed order and order number
+  Store -> Store: Reduce product quantities and update bale sales
+  Store -> Store: Create sold item logs
+  Store -> Store: Create POS sales inflow transaction
+  Store -> DB: Write product, bale, and item-log updates
+  Store -> DB: setDoc(orders, completed order)
+  Store -> DB: setDoc(transactions, sales inflow)
+  DB --> Store: Write results
+  Store --> POS: Return completed order
+  POS -> POS: Clear cart and sale form
+  POS -> Receipt: Display receipt for completed order
+  Receipt --> User: Show receipt, total, payment, and change
+  opt Print receipt
+    User -> Receipt: Select Print Receipt
+    Receipt -> Print: Open browser print dialog
+  end
+end
+
+note over Store,DB
+The app issues separate database writes for sale, stock, logs, and inflow;
+they are not wrapped in a single database transaction.
+end note
+@enduml
+
+@startuml
+title JKsur+ Sequence 5 - Finance Management
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin" as User
+participant "Finance View" as Finance
+participant "Store Context" as Store
+database "Supabase Database" as DB
+participant "Browser" as Browser
+
+User -> Finance: Open Expense Accounts
+Finance -> Store: Read expense accounts
+Store --> Finance: Current accounts and budgets
+User -> Finance: Enter or edit account name,\nmonthly budget, and details
+Finance -> Finance: Validate name and positive budget
+
+alt Add account
+  Finance -> Store: addExpenseAccount(account details)
+  Store -> Store: Add account to local state
+  Store -> DB: setDoc(expense_accounts, account)
+else Edit account
+  Finance -> Store: updateExpenseAccount(id, changes)
+  Store -> Store: Update local account state
+  Store -> DB: updateDoc(expense_accounts, changes)
+else Delete account
+  Finance --> User: Request deletion confirmation
+  User -> Finance: Confirm deletion
+  Finance -> Store: deleteExpenseAccount(id)
+  Store -> Store: Remove account from local state
+  Store -> DB: deleteDoc(expense_accounts, id)
+end
+
+DB --> Store: Write result
+Store --> Finance: Publish updated accounts
+Finance --> User: Display updated account list
+
+User -> Finance: Open Record Expense
+Finance -> Store: Read expense accounts
+Store --> Finance: Available accounts and budgets
+User -> Finance: Enter account, amount, date,\npayment method, description
+opt Attach receipt image
+  User -> Finance: Select image
+  Finance -> Browser: Read image as data URL
+  Browser --> Finance: Receipt image data
+end
+Finance -> Finance: Validate account and positive amount
+Finance -> Store: addExpense(expense details)
+Store -> Store: Create expense and matching outflow transaction
+Store -> DB: setDoc(expenses, expense)
+Store -> DB: setDoc(transactions, outflow)
+DB --> Store: Write results
+Store --> Finance: Publish expense and transaction
+Finance --> User: Switch to Transaction History
+
+User -> Finance: Search, filter, or export transaction history
+Finance -> Finance: Filter current transaction data\nor generate spreadsheet download
+Finance --> User: Display results or download export
+
+opt Delete a transaction
+  User -> Finance: Select delete and confirm
+  Finance -> Store: deleteTransaction(transaction id)
+  Store -> DB: deleteDoc(transactions, id)
+  opt Transaction is linked to an expense or order
+    Store -> DB: deleteDoc(linked expense or order)
+  end
+  DB --> Store: Write results
+  Store --> Finance: Publish updated history
+  Finance --> User: Display updated transactions
+end
+@enduml
+
+@startuml
+title JKsur+ Sequence 6 - View Dashboard
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin" as User
+participant "Dashboard View" as View
+participant "Store Context" as Store
+database "Supabase Database" as DB
+
+note over Store,DB
+On application startup, Store Context loads the dashboard data from
+Supabase and subscribes to Realtime changes.
+end note
+
+Store -> DB: SELECT * FROM orders
+Store -> DB: SELECT * FROM transactions
+Store -> DB: SELECT * FROM products
+Store -> DB: SELECT * FROM expenses
+DB --> Store: Return order, transaction,\nproduct, and expense rows
+Store -> Store: Map database rows and update app state
+DB --> Store: Push later Realtime table changes
+Store -> Store: Refresh state from changed database rows
+
+User -> View: Open Dashboard
+View -> Store: Read current orders, transactions,\nexpenses, customers, and products
+Store --> View: Return loaded dashboard data
+User -> View: Select date range
+View -> View: Filter data and calculate sales,\nexpenses, profit, assets, and customer metrics
+View --> User: Display dashboard KPIs and charts
+@enduml
+
+@startuml
+title JKsur+ Sequence 7 - View Sales Forecast
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin" as User
+participant "Sales Forecast View" as Forecast
+participant "Store Context" as Store
+database "Supabase Database" as DB
+
+note over Store,DB
+On application startup, Store Context fetches sales orders,
+transactions, and products from Supabase and subscribes to Realtime
+updates. The forecast uses the loaded and updated records.
+end note
+
+Store -> DB: SELECT * FROM orders
+Store -> DB: SELECT * FROM transactions
+Store -> DB: SELECT * FROM products
+DB --> Store: Return order, transaction,\nand product rows
+Store -> Store: Map database rows and update app state
+DB --> Store: Push later Realtime table changes
+Store -> Store: Refresh state from changed database rows
+
+User -> Forecast: Open Sales Forecast
+User -> Forecast: Choose product category\nand forecast horizon
+Forecast -> Store: Read current orders,\ntransactions, and products
+Store --> Forecast: Return loaded forecast data
+Forecast -> Forecast: Calculate actual sales and\nexponential moving-average forecast
+Forecast --> User: Display actual and forecast sales
+@enduml
+
+@startuml
+title JKsur+ Sequence 8 - Ask Inventory and Expense Assistant
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin" as User
+participant "AI Assistant View" as Chat
+participant "Store Context" as Store
+participant "Gemini API Endpoint" as Endpoint
+participant "Gemini AI Service" as Gemini
+
+User -> Chat: Enter a question
+Chat -> Chat: Check that question is in inventory /\nexpense scope
+
+alt Question is out of scope
+  Chat --> User: Display local scope refusal
+else Question is in scope
+  Chat -> Store: Read inventory and expense data
+  Store --> Chat: Prepare current store context
+  Chat -> Endpoint: POST prompt and context data
+  Endpoint -> Endpoint: Validate prompt and scope
+  alt Assistant request succeeds
+    alt Gemini API key is configured
+      Endpoint -> Gemini: Generate answer with store context
+      Gemini --> Endpoint: Answer text
+      Endpoint --> Chat: Return answer
+    else Gemini API key is not configured
+      Endpoint --> Chat: Return live-database summary fallback
+    end
+    Chat --> User: Display assistant answer
+  else Assistant request fails
+    Endpoint --> Chat: Return service error
+    Chat --> User: Display assistant unavailable message
+  end
+end
+@enduml

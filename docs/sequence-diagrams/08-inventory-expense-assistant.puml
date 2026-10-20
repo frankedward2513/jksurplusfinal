@@ -1,0 +1,42 @@
+﻿@startuml
+title JKsur+ Sequence 8 - Ask Inventory and Expense Assistant
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceArrowColor #222222
+skinparam sequenceLifeLineBorderColor #777777
+skinparam sequenceParticipantBorderColor #444444
+skinparam sequenceParticipantBackgroundColor #E8E8F0
+skinparam sequenceActorBorderColor #222222
+
+actor "Admin" as User
+participant "AI Assistant View" as Chat
+participant "Store Context" as Store
+participant "Gemini API Endpoint" as Endpoint
+participant "Gemini AI Service" as Gemini
+
+User -> Chat: Enter a question
+Chat -> Chat: Check that question is in inventory /\nexpense scope
+
+alt Question is out of scope
+  Chat --> User: Display local scope refusal
+else Question is in scope
+  Chat -> Store: Read inventory and expense data
+  Store --> Chat: Prepare current store context
+  Chat -> Endpoint: POST prompt and context data
+  Endpoint -> Endpoint: Validate prompt and scope
+  alt Assistant request succeeds
+    alt Gemini API key is configured
+      Endpoint -> Gemini: Generate answer with store context
+      Gemini --> Endpoint: Answer text
+      Endpoint --> Chat: Return answer
+    else Gemini API key is not configured
+      Endpoint --> Chat: Return live-database summary fallback
+    end
+    Chat --> User: Display assistant answer
+  else Assistant request fails
+    Endpoint --> Chat: Return service error
+    Chat --> User: Display assistant unavailable message
+  end
+end
+@enduml
