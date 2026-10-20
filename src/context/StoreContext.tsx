@@ -191,6 +191,19 @@ function isPrivilegedEmail(email: string): boolean {
   return normalized === 'exinadmin@gmail.com' || normalized === 'exinstaff@gmail.com';
 }
 
+function generateProductBarcode(products: Product[]): string {
+  const existingBarcodes = new Set(
+    products.map((product) => product.barcode.trim().toLowerCase()).filter(Boolean),
+  );
+  let barcode = '';
+
+  do {
+    barcode = `EX-${Math.floor(100000 + Math.random() * 900000)}`;
+  } while (existingBarcodes.has(barcode.toLowerCase()));
+
+  return barcode;
+}
+
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Theme state
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -919,6 +932,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const id = `prod_${Date.now()}`;
     const newProd: Product = {
       ...prodData,
+      barcode: prodData.barcode.trim() || generateProductBarcode(products),
       id,
       createdAt: new Date().toISOString(),
     };
