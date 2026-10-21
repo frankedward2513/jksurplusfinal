@@ -23,6 +23,7 @@ export const InventoryManagementView: React.FC = () => {
     categories,
     products,
     suppliers,
+    itemStatusLogs,
     addBale,
     updateBale,
     deleteBale,
@@ -72,6 +73,13 @@ export const InventoryManagementView: React.FC = () => {
 
   // 4 Tabs arranged: Bale Suppliers, Product Categories, Bale Management, Product List
   const [activeTab, setActiveTab] = useState<'suppliers' | 'categories' | 'bales' | 'products'>('suppliers');
+  const [editTabToFocus, setEditTabToFocus] = useState<
+    'suppliers' | 'categories' | 'bales' | 'products' | null
+  >(null);
+  const supplierFormRef = React.useRef<HTMLDivElement>(null);
+  const categoryFormRef = React.useRef<HTMLDivElement>(null);
+  const baleFormRef = React.useRef<HTMLDivElement>(null);
+  const productFormRef = React.useRef<HTMLDivElement>(null);
   const [supplierPage, setSupplierPage] = useState(1);
   const [categoryPage, setCategoryPage] = useState(1);
   const [balePage, setBalePage] = useState(1);
@@ -160,6 +168,7 @@ export const InventoryManagementView: React.FC = () => {
     setBaleQuantity(b.quantityPurchase);
     setBaleDesc(b.description || '');
     setActiveTab('bales');
+    setEditTabToFocus('bales');
   };
 
   // ===================== 2. CATEGORY MANAGEMENT STATE =====================
@@ -201,6 +210,7 @@ export const InventoryManagementView: React.FC = () => {
     setCategoryDesc(c.description || '');
     setCategoryColor(c.color || '#f97316');
     setActiveTab('categories');
+    setEditTabToFocus('categories');
   };
 
   // ===================== 3. PRODUCT LIST STATE =====================
@@ -221,10 +231,17 @@ export const InventoryManagementView: React.FC = () => {
   const handleSelectProductBale = (selectedCode: string) => {
     setProductBaleCode(selectedCode);
     const targetBale = bales.find((b) => b.baleCode === selectedCode);
+    const existingProductCategory = selectedCode === '' && editingProductId
+      ? products.find((product) => product.id === editingProductId)?.category || ''
+      : '';
+    setProductCategory(targetBale?.category || existingProductCategory);
     if (targetBale && targetBale.pricePerPiece) {
       setProductCostPrice(Math.round(targetBale.pricePerPiece));
     }
   };
+
+  const getProductCategory = (baleCode: string, fallbackCategory = '') =>
+    bales.find((bale) => bale.baleCode === baleCode)?.category || fallbackCategory || 'Apparel';
 
   // Handle image upload
   const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,11 +272,12 @@ export const InventoryManagementView: React.FC = () => {
 
     const matchedBale = bales.find((b) => b.baleCode === productBaleCode);
     const baleName = matchedBale ? matchedBale.baleName : 'Direct Stock';
+    const categoryForSave = matchedBale?.category || getProductCategory(productBaleCode, productCategory);
 
     if (editingProductId) {
       await updateProduct(editingProductId, {
         name: productName.trim(),
-        category: productCategory || 'Apparel',
+        category: categoryForSave,
         baleCode: productBaleCode,
         baleName,
         availableQuantity: Number(productQty),
@@ -274,7 +292,7 @@ export const InventoryManagementView: React.FC = () => {
     } else {
       await addProduct({
         name: productName.trim(),
-        category: productCategory || 'Apparel',
+        category: categoryForSave,
         baleCode: productBaleCode,
         baleName,
         availableQuantity: Number(productQty),
@@ -304,7 +322,7 @@ export const InventoryManagementView: React.FC = () => {
   const startEditProduct = (p: Product) => {
     setEditingProductId(p.id);
     setProductName(p.name);
-    setProductCategory(p.category);
+    setProductCategory(getProductCategory(p.baleCode || '', p.category));
     setProductBaleCode(p.baleCode || '');
     setProductQty(p.availableQuantity);
     setProductSellingPrice(p.sellingPrice);
@@ -314,6 +332,32 @@ export const InventoryManagementView: React.FC = () => {
     setProductLink(p.productLink || '');
     setProductDesc(p.description || '');
     setActiveTab('products');
+    setEditTabToFocus('products');
+  };
+
+  const getProductMissingDays = (productId: string) => {
+    const activeLostLogs = itemStatusLogs.filter(
+      (log) =>
+        log.productId === productId &&
+        log.type === 'lost' &&
+        log.status !== 'found' &&
+        log.quantity > 0
+    );
+
+    if (activeLostLogs.length === 0) return 0;
+
+    const latestLostLog = activeLostLogs.reduce((latest, current) => {
+      const latestTime = new Date(latest.date).getTime();
+      const currentTime = new Date(current.date).getTime();
+      return currentTime > latestTime ? current : latest;
+    });
+
+    const daysSinceMissing = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(latestLostLog.date).getTime()) / (1000 * 60 * 60 * 24))
+    );
+
+    return daysSinceMissing;
   };
 
   const filteredProductsList = useMemo(() => {
@@ -321,12 +365,12 @@ export const InventoryManagementView: React.FC = () => {
       const q = productSearch.toLowerCase();
       return (
         p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
+        getProductCategory(p.baleCode || '', p.category).toLowerCase().includes(q) ||
         (p.baleCode && p.baleCode.toLowerCase().includes(q)) ||
         p.barcode.toLowerCase().includes(q)
       );
     });
-  }, [products, productSearch]);
+  }, [products, productSearch, bales]);
   const visibleSuppliers = suppliers.slice((supplierPage - 1) * PAGE_SIZE, supplierPage * PAGE_SIZE);
   const visibleCategories = categories.slice((categoryPage - 1) * PAGE_SIZE, categoryPage * PAGE_SIZE);
   const visibleBales = bales.slice((balePage - 1) * PAGE_SIZE, balePage * PAGE_SIZE);
@@ -338,6 +382,19 @@ export const InventoryManagementView: React.FC = () => {
   useEffect(() => {
     setProductPage(1);
   }, [productSearch]);
+
+  useEffect(() => {
+    if (!editTabToFocus || editTabToFocus !== activeTab) return;
+
+    const formRefs = {
+      suppliers: supplierFormRef,
+      categories: categoryFormRef,
+      bales: baleFormRef,
+      products: productFormRef,
+    };
+    formRefs[editTabToFocus].current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setEditTabToFocus(null);
+  }, [activeTab, editTabToFocus]);
 
   // ===================== 4. BALE SUPPLIERS STATE =====================
   const [supplierName, setSupplierName] = useState('');
@@ -401,12 +458,13 @@ export const InventoryManagementView: React.FC = () => {
     setSupplierAddress(s.address || '');
     setSupplierDesc(s.description || '');
     setActiveTab('suppliers');
+    setEditTabToFocus('suppliers');
   };
 
   return (
     <div className="space-y-6 animate-fade-in pb-16">
       {/* 4 Inventory Navigation Buttons - Arranged in requested order: Bale Suppliers, Product Categories, Bale Management, Product List */}
-      <div className="p-2 sm:p-2.5 rounded-2xl glass-panel grid grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
+      <div className="sticky top-16 sm:top-20 z-30 p-2 sm:p-2.5 rounded-2xl glass-panel grid grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
         {/* Button 1: Bale Suppliers */}
         <button
           onClick={() => setActiveTab('suppliers')}
@@ -476,7 +534,7 @@ export const InventoryManagementView: React.FC = () => {
       {activeTab === 'suppliers' && (
         <div className="space-y-6">
           {/* Supplier Registration Form */}
-          <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
+          <div ref={supplierFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Truck className="w-5 h-5 text-orange-400" />
@@ -673,7 +731,7 @@ export const InventoryManagementView: React.FC = () => {
       {activeTab === 'categories' && (
         <div className="space-y-6">
           {/* Category Form */}
-          <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
+          <div ref={categoryFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Layers className="w-5 h-5 text-orange-400" />
@@ -841,7 +899,7 @@ export const InventoryManagementView: React.FC = () => {
       {/* ===================== TAB 3: BALE MANAGEMENT (Swapped to position 3) ===================== */}
       {activeTab === 'bales' && (
         <div className="space-y-6">
-          <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
+          <div ref={baleFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Boxes className="w-5 h-5 text-orange-400" />
@@ -1297,7 +1355,7 @@ export const InventoryManagementView: React.FC = () => {
       {activeTab === 'products' && (
         <div className="space-y-6">
           {/* Form */}
-          <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
+          <div ref={productFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-orange-400" />
@@ -1328,35 +1386,6 @@ export const InventoryManagementView: React.FC = () => {
                   />
                 </div>
 
-                {/* Category Selection - Direct Selection from Product Categories */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-medium text-stone-300">Product Category</label>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('categories')}
-                      className="text-[10px] text-orange-400 hover:text-orange-300 underline cursor-pointer"
-                    >
-                      Manage ({categories.length})
-                    </button>
-                  </div>
-                  <select
-                    value={productCategory}
-                    onChange={(e) => setProductCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200 cursor-pointer hover:border-orange-500/50"
-                  >
-                    <option value="">-- Select Product Category ({categories.length} available) --</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                    {productCategory && !categories.some((c) => c.name.toLowerCase() === productCategory.toLowerCase()) && (
-                      <option value={productCategory}>{productCategory}</option>
-                    )}
-                  </select>
-                </div>
-
                 {/* Bale Category / Bale Code Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -1383,18 +1412,27 @@ export const InventoryManagementView: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Available Quantity */}
+                {/* Category is inherited from the selected bale. */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Available Quantity *</label>
+                  <label className="block font-medium text-stone-300 mb-1">Category from selected bale</label>
+                  <div className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-300 text-sm sm:text-xs">
+                    {getProductCategory(productBaleCode, productCategory)}
+                  </div>
+                </div>
+
+                {/* Cost Price */}
+                <div>
+                  <label className="block font-medium text-stone-300 mb-1">
+                    Cost Price (Auto-filled from Bale)
+                  </label>
                   <input
                     type="number"
-                    min="1"
-                    step="1"
-                    required
-                    placeholder="1"
-                    value={productQty}
+                    min="0"
+                    step="0.01"
+                    placeholder="Cost per piece"
+                    value={productCostPrice}
                     onChange={(e) =>
-                      setProductQty(e.target.value === '' ? '' : Number(e.target.value))
+                      setProductCostPrice(e.target.value === '' ? '' : Number(e.target.value))
                     }
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs font-mono focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
@@ -1417,19 +1455,18 @@ export const InventoryManagementView: React.FC = () => {
                   />
                 </div>
 
-                {/* Cost Price */}
+                {/* Available Quantity */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">
-                    Cost Price (Auto-filled from Bale)
-                  </label>
+                  <label className="block font-medium text-stone-300 mb-1">Available Quantity *</label>
                   <input
                     type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Cost per piece"
-                    value={productCostPrice}
+                    min="1"
+                    step="1"
+                    required
+                    placeholder="1"
+                    value={productQty}
                     onChange={(e) =>
-                      setProductCostPrice(e.target.value === '' ? '' : Number(e.target.value))
+                      setProductQty(e.target.value === '' ? '' : Number(e.target.value))
                     }
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs font-mono focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
@@ -1546,100 +1583,111 @@ export const InventoryManagementView: React.FC = () => {
               <>
                 {/* Mobile Cards View (Visible on phones & small screens) */}
                 <div className="block md:hidden space-y-3">
-                  {visibleProducts.map((p) => (
-                    <div
-                      key={p.id}
-                      className="p-4 rounded-2xl bg-stone-950/70 border border-orange-500/20 space-y-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        {p.imageUrl ? (
-                          <img
-                            src={p.imageUrl}
-                            alt={p.name}
-                            className="w-16 h-16 rounded-xl object-cover bg-stone-900 border border-stone-800 shrink-0"
-                          />
-                        ) : (
-                          <div className="w-16 h-16 rounded-xl bg-stone-800 flex items-center justify-center text-[10px] text-stone-400 shrink-0">
-                            No Pic
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-white text-sm truncate">{p.name}</h4>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px]">
-                            <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-semibold">
-                              {p.size || 'Free Size'}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
-                              {p.category}
-                            </span>
-                          </div>
-                          {p.baleCode && (
-                            <p className="text-[10px] text-stone-400 font-mono mt-1">Bale: {p.baleCode}</p>
+                  {visibleProducts.map((p) => {
+                    const daysMissing = getProductMissingDays(p.id);
+
+                    return (
+                      <div
+                        key={p.id}
+                        className="p-4 rounded-2xl bg-stone-950/70 border border-orange-500/20 space-y-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt={p.name}
+                              className="w-16 h-16 rounded-xl object-cover bg-stone-900 border border-stone-800 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-xl bg-stone-800 flex items-center justify-center text-[10px] text-stone-400 shrink-0">
+                              No Pic
+                            </div>
                           )}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-white text-sm truncate">{p.name}</h4>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px]">
+                              <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-semibold">
+                                {p.size || 'Free Size'}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
+                                {getProductCategory(p.baleCode || '', p.category)}
+                              </span>
+                            </div>
+                            {p.baleCode && (
+                              <p className="text-[10px] text-stone-400 font-mono mt-1">Bale: {p.baleCode}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-stone-800/80">
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Selling Price</span>
-                          <span className="font-bold text-orange-400 text-sm font-mono">
-                            ₱{p.sellingPrice.toLocaleString()}
-                          </span>
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-stone-800/80">
+                          <div>
+                            <span className="text-stone-400 block text-[10px]">Selling Price</span>
+                            <span className="font-bold text-orange-400 text-sm font-mono">
+                              ₱{p.sellingPrice.toLocaleString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-stone-400 block text-[10px]">Available Stock</span>
+                            <div className="flex flex-col items-start gap-1">
+                              <span
+                                className={`font-bold font-mono ${
+                                  p.availableQuantity <= 0
+                                    ? 'text-rose-400'
+                                    : p.availableQuantity <= 3
+                                    ? 'text-amber-400'
+                                    : 'text-emerald-400'
+                                }`}
+                              >
+                                {p.availableQuantity} pcs
+                              </span>
+                              {daysMissing > 0 && (
+                                <span className="inline-flex items-center rounded-full border border-rose-500/30 bg-rose-950/60 px-2 py-0.5 text-[10px] font-semibold text-rose-300">
+                                  {daysMissing} day{daysMissing === 1 ? '' : 's'} missing
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-stone-400 block text-[10px]">Available Stock</span>
-                          <span
-                            className={`font-bold font-mono ${
-                              p.availableQuantity <= 0
-                                ? 'text-rose-400'
-                                : p.availableQuantity <= 3
-                                ? 'text-amber-400'
-                                : 'text-emerald-400'
-                            }`}
-                          >
-                            {p.availableQuantity} pcs
-                          </span>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-stone-800/80">
-                        <span className="text-[10px] font-mono text-stone-300 bg-stone-900/90 px-2 py-0.5 rounded border border-stone-800">
-                          Code: {p.barcode}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => startEditProduct(p)}
-                            className="px-3 py-1.5 rounded-lg bg-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition hover:bg-stone-700"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            <span>Edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDeleteTarget({
-                                type: 'product',
-                                id: p.id,
-                                title: 'Delete Product?',
-                                message: 'Are you sure you want to delete this product from inventory? If you clicked this by accident, click Cancel to keep it.',
-                                itemName: p.name,
-                                details: [
-                                  { label: 'Item Code / Barcode', value: p.barcode },
-                                  { label: 'Category', value: p.category },
-                                  { label: 'Selling Price', value: `₱${p.sellingPrice.toLocaleString()}` },
-                                  { label: 'In Stock', value: `${p.availableQuantity} pcs` },
-                                ],
-                              });
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-red-950/60 text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer transition hover:bg-red-900"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Delete</span>
-                          </button>
+                        <div className="flex items-center justify-between pt-2 border-t border-stone-800/80">
+                          <span className="text-[10px] font-mono text-stone-300 bg-stone-900/90 px-2 py-0.5 rounded border border-stone-800">
+                            Code: {p.barcode}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startEditProduct(p)}
+                              className="px-3 py-1.5 rounded-lg bg-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition hover:bg-stone-700"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteTarget({
+                                  type: 'product',
+                                  id: p.id,
+                                  title: 'Delete Product?',
+                                  message: 'Are you sure you want to delete this product from inventory? If you clicked this by accident, click Cancel to keep it.',
+                                  itemName: p.name,
+                                  details: [
+                                    { label: 'Item Code / Barcode', value: p.barcode },
+                                    { label: 'Category', value: getProductCategory(p.baleCode || '', p.category) },
+                                    { label: 'Selling Price', value: `₱${p.sellingPrice.toLocaleString()}` },
+                                    { label: 'In Stock', value: `${p.availableQuantity} pcs` },
+                                  ],
+                                });
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-red-950/60 text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer transition hover:bg-red-900"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Desktop Full Table View (Visible on md and larger) */}
@@ -1659,84 +1707,97 @@ export const InventoryManagementView: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-800 font-mono">
-                      {visibleProducts.map((p) => (
-                        <tr key={p.id} className="hover:bg-stone-800/40 transition">
-                          <td className="py-3 px-3">
-                            {p.imageUrl ? (
-                              <img
-                                src={p.imageUrl}
-                                alt={p.name}
-                                className="w-12 h-12 rounded-xl object-cover bg-stone-900 border border-stone-800"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-xl bg-stone-800 flex items-center justify-center text-[10px] text-stone-400">
-                                No Pic
+                      {visibleProducts.map((p) => {
+                        const daysMissing = getProductMissingDays(p.id);
+
+                        return (
+                          <tr key={p.id} className="hover:bg-stone-800/40 transition">
+                            <td className="py-3 px-3">
+                              {p.imageUrl ? (
+                                <img
+                                  src={p.imageUrl}
+                                  alt={p.name}
+                                  className="w-12 h-12 rounded-xl object-cover bg-stone-900 border border-stone-800"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-xl bg-stone-800 flex items-center justify-center text-[10px] text-stone-400">
+                                  No Pic
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 font-sans">
+                              <p className="font-bold text-white">{p.name}</p>
+                              <p className="text-[11px] text-orange-400">Size: {p.size || 'Free Size'}</p>
+                            </td>
+                            <td className="py-3 px-3 font-sans text-stone-300">
+                              {getProductCategory(p.baleCode || '', p.category)}
+                            </td>
+                            <td className="py-3 px-3 text-stone-400 font-mono">{p.baleCode || 'N/A'}</td>
+                            <td className="py-3 px-3 text-right font-bold text-orange-400">
+                              ₱{p.sellingPrice.toLocaleString()}
+                            </td>
+                            <td className="py-3 px-3 text-right text-stone-400">
+                              ₱{p.costPrice ? p.costPrice.toLocaleString() : '0'}
+                            </td>
+                            <td className="py-3 px-3 text-center font-bold text-white">
+                              <div className="flex flex-col items-center gap-1.5">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-xs ${
+                                    p.availableQuantity <= 0
+                                      ? 'bg-rose-950/80 text-rose-300'
+                                      : p.availableQuantity <= 3
+                                      ? 'bg-amber-950/80 text-amber-300'
+                                      : 'bg-emerald-950/80 text-emerald-300'
+                                  }`}
+                                >
+                                  {p.availableQuantity} pcs
+                                </span>
+                                {daysMissing > 0 && (
+                                  <span className="inline-flex items-center rounded-full border border-rose-500/30 bg-rose-950/60 px-2 py-0.5 text-[10px] font-semibold text-rose-300">
+                                    {daysMissing} day{daysMissing === 1 ? '' : 's'} missing
+                                  </span>
+                                )}
                               </div>
-                            )}
-                          </td>
-                          <td className="py-3 px-3 font-sans">
-                            <p className="font-bold text-white">{p.name}</p>
-                            <p className="text-[11px] text-orange-400">Size: {p.size || 'Free Size'}</p>
-                          </td>
-                          <td className="py-3 px-3 font-sans text-stone-300">{p.category}</td>
-                          <td className="py-3 px-3 text-stone-400 font-mono">{p.baleCode || 'N/A'}</td>
-                          <td className="py-3 px-3 text-right font-bold text-orange-400">
-                            ₱{p.sellingPrice.toLocaleString()}
-                          </td>
-                          <td className="py-3 px-3 text-right text-stone-400">
-                            ₱{p.costPrice ? p.costPrice.toLocaleString() : '0'}
-                          </td>
-                          <td className="py-3 px-3 text-center font-bold text-white">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-xs ${
-                                p.availableQuantity <= 0
-                                  ? 'bg-rose-950/80 text-rose-300'
-                                  : p.availableQuantity <= 3
-                                  ? 'bg-amber-950/80 text-amber-300'
-                                  : 'bg-emerald-950/80 text-emerald-300'
-                              }`}
-                            >
-                              {p.availableQuantity} pcs
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono text-[11px] text-orange-400 font-bold">
-                            {p.barcode}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => startEditProduct(p)}
-                                className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition cursor-pointer"
-                                title="Edit Product"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDeleteTarget({
-                                    type: 'product',
-                                    id: p.id,
-                                    title: 'Delete Product?',
-                                    message: 'Are you sure you want to delete this product from inventory? If you clicked this by accident, click Cancel to keep it.',
-                                    itemName: p.name,
-                                    details: [
-                                      { label: 'Item Code / Barcode', value: p.barcode },
-                                      { label: 'Category', value: p.category },
-                                      { label: 'Selling Price', value: `₱${p.sellingPrice.toLocaleString()}` },
-                                      { label: 'In Stock', value: `${p.availableQuantity} pcs` },
-                                    ],
-                                  });
-                                }}
-                                className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/30 transition cursor-pointer"
-                                title="Delete Product"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono text-[11px] text-orange-400 font-bold">
+                              {p.barcode}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => startEditProduct(p)}
+                                  className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition cursor-pointer"
+                                  title="Edit Product"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteTarget({
+                                      type: 'product',
+                                      id: p.id,
+                                      title: 'Delete Product?',
+                                      message: 'Are you sure you want to delete this product from inventory? If you clicked this by accident, click Cancel to keep it.',
+                                      itemName: p.name,
+                                      details: [
+                                        { label: 'Item Code / Barcode', value: p.barcode },
+                                        { label: 'Category', value: getProductCategory(p.baleCode || '', p.category) },
+                                        { label: 'Selling Price', value: `₱${p.sellingPrice.toLocaleString()}` },
+                                        { label: 'In Stock', value: `${p.availableQuantity} pcs` },
+                                      ],
+                                    });
+                                  }}
+                                  className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/30 transition cursor-pointer"
+                                  title="Delete Product"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

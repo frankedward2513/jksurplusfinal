@@ -4,7 +4,6 @@ import {
   collection,
   doc,
   setDoc,
-  deleteDoc,
   updateDoc,
   onSnapshot,
   query,
@@ -15,6 +14,7 @@ import {
   signInWithPopup,
   googleProvider,
   auth,
+  supabase,
 } from '../lib/supabase';
 import {
   UserProfile,
@@ -30,6 +30,7 @@ import {
   CustomerSummary,
   Transaction,
   ItemStatusLog,
+  TrashItem,
 } from '../types';
 
 export interface SignUpParams {
@@ -154,6 +155,10 @@ interface StoreContextType {
     }
   ) => Promise<void>;
   deleteItemStatusLog: (id: string) => Promise<void>;
+
+  // exBIN
+  fetchTrashItems: () => Promise<TrashItem[]>;
+  restoreTrashItems: (ids: string[]) => Promise<void>;
 }
 
 function normalizeOrder(order: Order): Order {
@@ -496,6 +501,49 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setFormAlert(message);
   };
   const clearFormAlert = () => setFormAlert(null);
+
+  const moveRecordsToTrash = async (
+    records: { table_name: string; record_id: string }[],
+  ): Promise<boolean> => {
+    try {
+      const { error } = await supabase.rpc('exins_trash_records', { p_records: records });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'exbin_trash');
+      showFormAlert('Could not move the selected item to exBIN. Nothing was deleted.');
+      return false;
+    }
+  };
+
+  const fetchTrashItems = async (): Promise<TrashItem[]> => {
+    if (currentUser.role !== 'owner') {
+      throw new Error('Only the owner can view exBIN.');
+    }
+    const { data, error } = await supabase
+      .from('exbin_trash')
+      .select('id, table_name, record_id, record_data, deleted_at, expires_at')
+      .gt('expires_at', new Date().toISOString())
+      .order('expires_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      tableName: row.table_name,
+      recordId: row.record_id,
+      recordData: row.record_data as Record<string, unknown>,
+      deletedAt: row.deleted_at,
+      expiresAt: row.expires_at,
+    }));
+  };
+
+  const restoreTrashItems = async (ids: string[]): Promise<void> => {
+    if (currentUser.role !== 'owner') {
+      throw new Error('Only the owner can restore items from exBIN.');
+    }
+    if (!ids.length) return;
+    const { error } = await supabase.rpc('exins_restore_trash', { p_trash_ids: ids });
+    if (error) throw error;
+  };
 
   useEffect(() => {
     if (formAlert) {
@@ -883,12 +931,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteBale = async (id: string) => {
+    if (!(await moveRecordsToTrash([{ table_name: 'bales', record_id: id }]))) return;
     setBales((prev) => prev.filter((b) => b.id !== id));
-    try {
-      await deleteDoc(doc(db, 'bales', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `bales/${id}`);
-    }
   };
 
   // Category Management
@@ -919,12 +963,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteCategory = async (id: string) => {
+    if (!(await moveRecordsToTrash([{ table_name: 'categories', record_id: id }]))) return;
     setCategories((prev) => prev.filter((c) => c.id !== id));
-    try {
-      await deleteDoc(doc(db, 'categories', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `categories/${id}`);
-    }
   };
 
   // Product Management
@@ -955,12 +995,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteProduct = async (id: string) => {
+    if (!(await moveRecordsToTrash([{ table_name: 'products', record_id: id }]))) return;
     setProducts((prev) => prev.filter((p) => p.id !== id));
-    try {
-      await deleteDoc(doc(db, 'products', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
-    }
   };
 
   // Supplier Management
@@ -991,12 +1027,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteSupplier = async (id: string) => {
+    if (!(await moveRecordsToTrash([{ table_name: 'suppliers', record_id: id }]))) return;
     setSuppliers((prev) => prev.filter((s) => s.id !== id));
-    try {
-      await deleteDoc(doc(db, 'suppliers', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `suppliers/${id}`);
-    }
   };
 
   // Expense Account Management
@@ -1027,12 +1059,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteExpenseAccount = async (id: string) => {
+    if (!(await moveRecordsToTrash([{ table_name: 'expense_accounts', record_id: id }]))) return;
     setExpenseAccounts((prev) => prev.filter((a) => a.id !== id));
-    try {
-      await deleteDoc(doc(db, 'expense_accounts', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `expense_accounts/${id}`);
-    }
   };
 
   // Expense Management
@@ -1074,27 +1102,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const matchingTx = transactions.find(
       (t) => t.expenseId === id || (t.flowType === 'outflow' && t.account === id)
     );
-    setExpenses((prev) => {
-      const next = prev.filter((e) => e.id !== id);
-      localStorage.setItem('exins_expenses', JSON.stringify(next));
-      return next;
-    });
-    if (matchingTx) {
-      setTransactions((prev) => {
-        const next = prev.filter((t) => t.id !== matchingTx.id);
-        localStorage.setItem('exins_transactions', JSON.stringify(next));
-        return next;
-      });
-    }
+    const records = [{ table_name: 'expenses', record_id: id }];
+    if (matchingTx) records.push({ table_name: 'transactions', record_id: matchingTx.id });
+    if (!(await moveRecordsToTrash(records))) return;
 
-    try {
-      await deleteDoc(doc(db, 'expenses', id));
-      if (matchingTx) {
-        await deleteDoc(doc(db, 'transactions', matchingTx.id)).catch(console.warn);
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `expenses/${id}`);
-    }
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
+    if (matchingTx) setTransactions((prev) => prev.filter((t) => t.id !== matchingTx.id));
   };
 
   // Transactions
@@ -1116,69 +1129,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteTransaction = async (id: string) => {
     const targetTx = transactions.find((t) => t.id === id);
+    const linkedOrder = targetTx?.orderId
+      ? orders.find((order) => order.id === targetTx.orderId)
+      : targetTx?.description
+        ? orders.find(
+            (order) =>
+              targetTx.description.includes(order.orderNumber) ||
+              targetTx.description.includes(order.id),
+          )
+        : undefined;
+    const linkedExpense = targetTx?.expenseId
+      ? expenses.find((expense) => expense.id === targetTx.expenseId)
+      : targetTx?.flowType === 'outflow'
+        ? expenses.find(
+            (expense) =>
+              (targetTx.account &&
+                expense.accountName === targetTx.account &&
+                expense.amount === targetTx.outflow) ||
+              (targetTx.description && targetTx.description.includes(expense.id)),
+          )
+        : undefined;
+    const records = [{ table_name: 'transactions', record_id: id }];
+    if (linkedOrder) records.push({ table_name: 'orders', record_id: linkedOrder.id });
+    if (linkedExpense) records.push({ table_name: 'expenses', record_id: linkedExpense.id });
+    if (!(await moveRecordsToTrash(records))) return;
 
-    // 1. Remove from local transactions state immediately
-    setTransactions((prev) => {
-      const next = prev.filter((t) => t.id !== id);
-      localStorage.setItem('exins_transactions', JSON.stringify(next));
-      return next;
-    });
-
-    try {
-      // 2. Delete transaction document from Firestore database
-      await deleteDoc(doc(db, 'transactions', id));
-
-      // 3. If linked to an order, delete order document from Firestore database and state
-      const linkedOrderId = targetTx?.orderId;
-      if (linkedOrderId) {
-        setOrders((prev) => {
-          const next = prev.filter((o) => o.id !== linkedOrderId);
-          localStorage.setItem('exins_orders', JSON.stringify(next));
-          return next;
-        });
-        await deleteDoc(doc(db, 'orders', linkedOrderId)).catch(console.warn);
-      } else if (targetTx?.description) {
-        // Fallback match: check if order number or order id is mentioned in description
-        const matchedOrder = orders.find(
-          (o) => targetTx.description.includes(o.orderNumber) || targetTx.description.includes(o.id)
-        );
-        if (matchedOrder) {
-          setOrders((prev) => {
-            const next = prev.filter((o) => o.id !== matchedOrder.id);
-            localStorage.setItem('exins_orders', JSON.stringify(next));
-            return next;
-          });
-          await deleteDoc(doc(db, 'orders', matchedOrder.id)).catch(console.warn);
-        }
-      }
-
-      // 4. If linked to an expense, delete expense document from Firestore database and state
-      const linkedExpenseId = targetTx?.expenseId;
-      if (linkedExpenseId) {
-        setExpenses((prev) => {
-          const next = prev.filter((e) => e.id !== linkedExpenseId);
-          localStorage.setItem('exins_expenses', JSON.stringify(next));
-          return next;
-        });
-        await deleteDoc(doc(db, 'expenses', linkedExpenseId)).catch(console.warn);
-      } else if (targetTx?.flowType === 'outflow') {
-        const matchedExp = expenses.find(
-          (e) =>
-            (targetTx.account && e.accountName === targetTx.account && e.amount === targetTx.outflow) ||
-            (targetTx.description && targetTx.description.includes(e.id))
-        );
-        if (matchedExp) {
-          setExpenses((prev) => {
-            const next = prev.filter((e) => e.id !== matchedExp.id);
-            localStorage.setItem('exins_expenses', JSON.stringify(next));
-            return next;
-          });
-          await deleteDoc(doc(db, 'expenses', matchedExp.id)).catch(console.warn);
-        }
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `transactions/${id}`);
-    }
+    setTransactions((prev) => prev.filter((transaction) => transaction.id !== id));
+    if (linkedOrder) setOrders((prev) => prev.filter((order) => order.id !== linkedOrder.id));
+    if (linkedExpense) setExpenses((prev) => prev.filter((expense) => expense.id !== linkedExpense.id));
   };
 
   // POS Sale Completion
@@ -1402,12 +1380,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteItemStatusLog = async (id: string) => {
+    if (!(await moveRecordsToTrash([{ table_name: 'item_logs', record_id: id }]))) return;
     setItemStatusLogs((prev) => prev.filter((log) => log.id !== id));
-    try {
-      await deleteDoc(doc(db, 'item_logs', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `item_logs/${id}`);
-    }
   };
 
   return (
@@ -1458,6 +1432,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         logItemStatus,
         updateItemStatusLog,
         deleteItemStatusLog,
+        fetchTrashItems,
+        restoreTrashItems,
       }}
     >
       {children}

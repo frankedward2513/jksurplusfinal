@@ -2,7 +2,6 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import {
   TrendingUp,
-  Sliders,
   Info,
 } from 'lucide-react';
 
@@ -10,9 +9,12 @@ export const ForecastingView: React.FC = () => {
   const { orders, transactions, categories, products } = useStore();
 
   // ===================== EWMA SALES FORECASTING STATE =====================
-  const [alpha, setAlpha] = useState<number>(0.3); // alpha factor (0.1 to 0.9)
-  const [forecastHorizon, setForecastHorizon] = useState<1 | 3 | 7>(3); // 1, 3, or 7 days ahead
+  const alpha = 0.3;
+  const [forecastPeriod, setForecastPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [forecastHorizon, setForecastHorizon] = useState(3);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const horizonOptions =
+    forecastPeriod === 'daily' ? [1, 3, 7] : forecastPeriod === 'weekly' ? [1, 2, 4, 8] : [1, 3, 6, 12];
 
   // Scrolling & Responsive width refs
   const chartWrapperRef = useRef<HTMLDivElement>(null);
@@ -25,7 +27,7 @@ export const ForecastingView: React.FC = () => {
     actual: number;
     predicted: number;
     isForecast?: boolean;
-    forecastDayNumber?: number;
+    forecastPeriodNumber?: number;
     idx: number;
   } | null>(null);
 
@@ -43,47 +45,74 @@ export const ForecastingView: React.FC = () => {
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
-  // Historical daily sales data (30 days total to enable horizontal scroll look back)
+  // Aggregate history by the selected interval so the forecast uses matching units.
   const ewmaData = useMemo(() => {
-    const totalHistoryDays = 30; // 30 days historical data
+    const totalHistoryPeriods = forecastPeriod === 'daily' ? 30 : 12;
     const history: { dateStr: string; label: string; dayOfWeek: string; actual: number }[] = [];
     const now = new Date();
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
-    for (let i = totalHistoryDays - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(now.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const label = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
-      const dayOfWeek = d.toLocaleDateString('default', { weekday: 'short' });
+    for (let i = totalHistoryPeriods - 1; i >= 0; i--) {
+      let periodStart: Date;
+      let periodEnd: Date;
+      if (forecastPeriod === 'daily') {
+        periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        periodEnd = periodStart;
+      } else if (forecastPeriod === 'weekly') {
+        const currentWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+        periodStart = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), currentWeekStart.getDate() - i * 7);
+        periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 6);
+      } else {
+        periodStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0);
+      }
 
-      // Calculate actual sales for this date
-      let daySales = 0;
+      const startDate = formatDate(periodStart);
+      const endDate = formatDate(periodEnd);
+      const dateStr = startDate;
+      const label = forecastPeriod === 'daily'
+        ? periodStart.toLocaleDateString('default', { month: 'short', day: 'numeric' })
+        : forecastPeriod === 'weekly'
+          ? `Week of ${periodStart.toLocaleDateString('default', { month: 'short', day: 'numeric' })}`
+          : periodStart.toLocaleDateString('default', { month: 'short', year: 'numeric' });
+      const dayOfWeek = forecastPeriod === 'daily'
+        ? periodStart.toLocaleDateString('default', { weekday: 'short' })
+        : forecastPeriod === 'weekly' ? 'Weekly total' : 'Monthly total';
 
-      // Filter from orders
+      let periodSales = 0;
+
       orders.forEach((o) => {
-        if (o.status !== 'cancelled' && o.createdAt.startsWith(dateStr)) {
+        const orderDate = o.createdAt.slice(0, 10);
+        if (o.status !== 'cancelled' && orderDate >= startDate && orderDate <= endDate) {
           if (selectedCategory === 'all') {
-            daySales += o.totalAmount;
+            periodSales += o.totalAmount;
           } else {
             o.items.forEach((it) => {
               const prod = products.find((p) => p.id === it.productId);
               if (prod?.category?.toLowerCase() === selectedCategory.toLowerCase()) {
-                daySales += it.price * it.quantity;
+                periodSales += it.price * it.quantity;
               }
             });
           }
         }
       });
 
-      // Also filter from transactions if orders were not matched
-      if (daySales === 0 && selectedCategory === 'all') {
+      if (periodSales === 0 && selectedCategory === 'all') {
         const txInflows = transactions
-          .filter((t) => t.flowType === 'inflow' && (t.date === dateStr || t.createdAt.startsWith(dateStr)))
+          .filter((t) => {
+            const transactionDate = (t.date || t.createdAt).slice(0, 10);
+            return t.flowType === 'inflow' && transactionDate >= startDate && transactionDate <= endDate;
+          })
           .reduce((sum, t) => sum + t.inflow, 0);
-        daySales = txInflows;
+        periodSales = txInflows;
       }
 
-      history.push({ dateStr, label, dayOfWeek, actual: daySales });
+      history.push({ dateStr, label, dayOfWeek, actual: periodSales });
     }
 
     // Compute EWMA: S_t = alpha * Y_t + (1 - alpha) * S_{t-1}
@@ -94,7 +123,7 @@ export const ForecastingView: React.FC = () => {
       actual: number;
       predicted: number;
       isForecast?: boolean;
-      forecastDayNumber?: number;
+      forecastPeriodNumber?: number;
     }[] = [];
 
     let currentS = history[0].actual;
@@ -114,21 +143,36 @@ export const ForecastingView: React.FC = () => {
       });
     });
 
-    // Generate forecast horizon points (1 day ahead, 3 days ahead, or 7 days ahead)
+    // Apply the last smoothed level to each future interval.
     const futureForecasts: typeof computedPoints = [];
     for (let h = 1; h <= forecastHorizon; h++) {
-      const futureDate = new Date();
-      futureDate.setDate(now.getDate() + h);
-      const label = `+${h}d (${futureDate.toLocaleDateString('default', { month: 'short', day: 'numeric' })})`;
-      const dayOfWeek = futureDate.toLocaleDateString('default', { weekday: 'short' });
+      let futureDate: Date;
+      if (forecastPeriod === 'daily') {
+        futureDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + h);
+      } else if (forecastPeriod === 'weekly') {
+        const currentWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+        futureDate = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), currentWeekStart.getDate() + h * 7);
+      } else {
+        futureDate = new Date(now.getFullYear(), now.getMonth() + h, 1);
+      }
+      const dateStr = formatDate(futureDate);
+      const dateLabel = forecastPeriod === 'daily'
+        ? futureDate.toLocaleDateString('default', { month: 'short', day: 'numeric' })
+        : forecastPeriod === 'weekly'
+          ? `Week of ${futureDate.toLocaleDateString('default', { month: 'short', day: 'numeric' })}`
+          : futureDate.toLocaleDateString('default', { month: 'short', year: 'numeric' });
+      const label = `+${h}${forecastPeriod === 'daily' ? 'd' : forecastPeriod === 'weekly' ? 'w' : 'mo'} (${dateLabel})`;
+      const dayOfWeek = forecastPeriod === 'daily'
+        ? futureDate.toLocaleDateString('default', { weekday: 'short' })
+        : forecastPeriod === 'weekly' ? 'Weekly forecast' : 'Monthly forecast';
       futureForecasts.push({
-        dateStr: futureDate.toISOString().split('T')[0],
+        dateStr,
         label,
         dayOfWeek,
         actual: 0,
         predicted: Math.round(currentS),
         isForecast: true,
-        forecastDayNumber: h,
+        forecastPeriodNumber: h,
       });
     }
 
@@ -137,11 +181,11 @@ export const ForecastingView: React.FC = () => {
       forecastPoints: futureForecasts,
       allPoints: [...computedPoints, ...futureForecasts],
       currentSmoothedLevel: Math.round(currentS),
-      totalHistoryDays,
+      totalHistoryPeriods,
     };
-  }, [orders, transactions, products, selectedCategory, alpha, forecastHorizon]);
+  }, [orders, transactions, products, selectedCategory, forecastPeriod, alpha, forecastHorizon]);
 
-  // Auto-scroll to latest (showing 7 actual days + forecast horizon)
+  // Auto-scroll to the latest forecast interval.
   useEffect(() => {
     const timer = setTimeout(() => {
       if (chartScrollRef.current) {
@@ -149,10 +193,15 @@ export const ForecastingView: React.FC = () => {
       }
     }, 60);
     return () => clearTimeout(timer);
-  }, [forecastHorizon, selectedCategory, containerWidth]);
+  }, [forecastPeriod, forecastHorizon, selectedCategory, containerWidth]);
 
-  // Visible dates count = 7 actual sales + forecast horizon (1 => 8, 3 => 10, 7 => 14)
-  const visibleDatesCount = 7 + forecastHorizon;
+  const visibleHistoryCount = Math.min(7, ewmaData.historyPoints.length);
+  const visibleDatesCount = visibleHistoryCount + forecastHorizon;
+  const periodLabel = forecastPeriod === 'daily' ? 'day' : forecastPeriod === 'weekly' ? 'week' : 'month';
+  const periodLabelPlural = `${periodLabel}s`;
+  const periodUnit = forecastPeriod === 'daily' ? 'd' : forecastPeriod === 'weekly' ? 'w' : 'mo';
+  const periodTitle = forecastPeriod === 'daily' ? 'Day' : forecastPeriod === 'weekly' ? 'Week' : 'Month';
+  const historicalRange = forecastPeriod === 'daily' ? '30 days' : forecastPeriod === 'weekly' ? '12 weeks' : '12 months';
 
   // SVG dimensions for EWMA line graph
   const maxSales = Math.max(
@@ -166,8 +215,7 @@ export const ForecastingView: React.FC = () => {
   // Available plot width excluding the pinned 68px Y-axis on the left
   const availablePlotWidth = Math.max(340, containerWidth - 76);
 
-  // Column gap so that exactly visibleDatesCount dates fit the visible window
-  // 1 day ahead => 8 dates visible; 3 days ahead => 10 dates visible; 7 days ahead => 14 dates visible
+  // Column gap so the recent history and selected forecast horizon fit the visible window.
   const pointGap = Math.max(
     76,
     Math.floor((availablePlotWidth - pad.left - pad.right) / Math.max(1, visibleDatesCount - 1))
@@ -191,7 +239,7 @@ export const ForecastingView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in pb-16">
-      {/* Controls Bar: Alpha factor, Forecast Horizon, Category Filter */}
+      {/* Controls Bar: Fixed Alpha, Forecast Period, Forecast Horizon, Category Filter */}
       <div className="p-6 rounded-3xl glass-panel space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-orange-500/20">
           <div>
@@ -200,7 +248,7 @@ export const ForecastingView: React.FC = () => {
               <span>Sales Forecast (EWMA Momentum Model)</span>
             </h2>
             <p className="text-xs text-stone-400 font-mono">
-              Sₜ = α·Yₜ + (1 - α)·Sₜ₋₁ (Predicts upcoming store sales using historical momentum)
+              Predicts upcoming store sales using historical sales trends.
             </p>
           </div>
 
@@ -208,57 +256,60 @@ export const ForecastingView: React.FC = () => {
           <div className="px-4 py-2 rounded-xl bg-orange-500/10 border border-orange-500/30 text-right">
             <p className="text-[10px] text-stone-400 uppercase font-mono">Current Predicted Level</p>
             <p className="text-lg font-black text-orange-400 font-mono">
-              ₱{ewmaData.currentSmoothedLevel.toLocaleString()} / day
+              ₱{ewmaData.currentSmoothedLevel.toLocaleString()} / {periodLabel}
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs pt-1">
-              {/* Alpha Factor Selection */}
+              {/* Forecast Period */}
               <div className="space-y-1.5 bg-stone-950/70 p-3 rounded-2xl border border-orange-500/20">
-                <div className="flex justify-between font-medium">
-                  <span className="text-stone-300 flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-orange-400" />
-                    Smoothing Factor (Alpha α):
-                  </span>
-                  <span className="font-mono font-bold text-orange-400 text-sm">{alpha}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="0.9"
-                  step="0.1"
-                  value={alpha}
-                  onChange={(e) => setAlpha(parseFloat(e.target.value))}
-                  className="w-full accent-orange-500 cursor-pointer"
-                />
-                <div className="flex justify-between text-[10px] text-stone-500">
-                  <span>0.1 (Smoother / Stable)</span>
-                  <span>0.9 (Reactive / Agile)</span>
-                </div>
-              </div>
-
-              {/* Forecast Horizon: 1, 3, or 7 days ahead */}
-              <div className="space-y-1.5 bg-stone-950/70 p-3 rounded-2xl border border-orange-500/20">
-                <label className="block text-stone-300 font-medium">
-                  Forecast Horizon (Days Ahead):
-                </label>
+                <label className="block text-stone-300 font-medium">Forecast Interval:</label>
                 <div className="grid grid-cols-3 gap-1.5 pt-1">
-                  {[1, 3, 7].map((days) => (
+                  {(['daily', 'weekly', 'monthly'] as const).map((period) => (
                     <button
-                      key={days}
+                      key={period}
                       type="button"
-                      onClick={() => setForecastHorizon(days as any)}
-                      className={`py-1.5 px-2 rounded-xl font-bold text-xs transition cursor-pointer ${
-                        forecastHorizon === days
+                      onClick={() => {
+                        setForecastPeriod(period);
+                        setForecastHorizon(period === 'weekly' ? 2 : 3);
+                      }}
+                      className={`py-1.5 px-2 rounded-xl font-bold text-xs capitalize transition cursor-pointer ${
+                        forecastPeriod === period
                           ? 'bg-orange-600 text-white shadow-sm'
                           : 'bg-stone-900 text-stone-400 hover:text-white border border-stone-800'
                       }`}
                     >
-                      {days} {days === 1 ? 'Day' : 'Days'} Ahead
+                      {period}
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Forecast Horizon */}
+              <div className="space-y-1.5 bg-stone-950/70 p-3 rounded-2xl border border-orange-500/20">
+                <label className="block text-stone-300 font-medium">
+                  Forecast Horizon ({periodLabelPlural} Ahead):
+                </label>
+                <div className={`grid ${horizonOptions.length === 3 ? 'grid-cols-3' : 'grid-cols-4'} gap-1.5 pt-1`}>
+                  {horizonOptions.map((horizon) => (
+                    <button
+                      key={horizon}
+                      type="button"
+                      onClick={() => setForecastHorizon(horizon)}
+                      className={`py-1.5 px-2 rounded-xl font-bold text-xs transition cursor-pointer ${
+                        forecastHorizon === horizon
+                          ? 'bg-orange-600 text-white shadow-sm'
+                          : 'bg-stone-900 text-stone-400 hover:text-white border border-stone-800'
+                      }`}
+                    >
+                      {horizon}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-stone-500">
+                  {horizonOptions.map((horizon) => `${horizon} ${horizon === 1 ? periodLabel : periodLabelPlural}`).join(' · ')}
+                </p>
               </div>
 
               {/* Category Filter */}
@@ -289,8 +340,8 @@ export const ForecastingView: React.FC = () => {
                   <span>Sales Forecast Graph (Actual vs Predicted EWMA)</span>
                 </h3>
                 <p className="text-xs text-stone-400 mt-0.5">
-                  Showing 7 days actual sales + {forecastHorizon} forecast day{forecastHorizon > 1 ? 's' : ''} ({visibleDatesCount} dates total).
-                  Use the horizontal scrollbar to look back up to 30 days of past sales.
+                  Showing {visibleHistoryCount} historical {periodLabelPlural} + {forecastHorizon} forecast {periodLabelPlural} ({visibleDatesCount} intervals total).
+                  Use the horizontal scrollbar to look back through {historicalRange} of sales.
                 </p>
               </div>
 
@@ -302,7 +353,7 @@ export const ForecastingView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-cyan-400 inline-block shadow-sm shadow-cyan-400/50" />
-                  <span className="text-cyan-400">Predicted (EWMA) & +{forecastHorizon}d Forecast</span>
+                  <span className="text-cyan-400">Predicted (EWMA) & +{forecastHorizon}{periodUnit} Forecast</span>
                 </div>
               </div>
             </div>
@@ -314,7 +365,7 @@ export const ForecastingView: React.FC = () => {
                 <div className="flex items-center gap-2 text-stone-300">
                   <Info className="w-3.5 h-3.5 text-orange-400" />
                   <span>
-                    Viewing: <strong className="text-white">7 Days Actual + {forecastHorizon}d Forecast</strong> ({visibleDatesCount} visible dates)
+                    Viewing: <strong className="text-white">{visibleHistoryCount} Historical {periodLabelPlural} + {forecastHorizon} {periodLabel} Forecast</strong> ({visibleDatesCount} visible intervals)
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-stone-400 flex items-center gap-1">
@@ -385,7 +436,7 @@ export const ForecastingView: React.FC = () => {
                             y={pad.top + 14}
                             className="text-[10px] fill-cyan-400 font-mono font-bold"
                           >
-                            Forecast Zone ({forecastHorizon}d) →
+                            Forecast Zone ({forecastHorizon}{periodUnit}) →
                           </text>
                         </>
                       )}
@@ -505,7 +556,9 @@ export const ForecastingView: React.FC = () => {
                       {hoveredPoint.label} ({hoveredPoint.dayOfWeek})
                     </span>
                     <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold bg-stone-950 text-stone-300 border border-stone-800">
-                      {hoveredPoint.isForecast ? `Forecast Day +${hoveredPoint.forecastDayNumber}` : 'Historical Actual'}
+                      {hoveredPoint.isForecast
+                        ? `Forecast ${periodTitle} +${hoveredPoint.forecastPeriodNumber}`
+                        : `Historical ${forecastPeriod === 'daily' ? 'Actual' : 'Total'}`}
                     </span>
                   </div>
                 </div>

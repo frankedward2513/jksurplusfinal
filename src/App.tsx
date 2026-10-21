@@ -10,6 +10,7 @@ import { PosView } from './components/PosView';
 import { AiChatbotView } from './components/AiChatbotView';
 import { AuthModal } from './components/AuthModal';
 import { FormSuccessAlert } from './components/FormSuccessAlert';
+import { TrashBinView } from './components/TrashBinView';
 
 const MainLayout: React.FC = () => {
   const { currentUser, isDarkMode } = useStore();
@@ -87,6 +88,8 @@ const MainLayout: React.FC = () => {
           {activeTab === 'forecasting' && currentUser.role === 'owner' && <ForecastingView />}
 
           {activeTab === 'ai_chat' && currentUser.role === 'owner' && <AiChatbotView />}
+
+          {activeTab === 'exbin' && currentUser.role === 'owner' && <TrashBinView />}
 
           {activeTab === 'showcase' && <ShowcaseShopView />}
 

@@ -12,6 +12,19 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 
+const getDaysMissing = (date: string) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const loggedDate = match
+    ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : Date.parse(date);
+
+  if (!Number.isFinite(loggedDate)) return 0;
+
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.max(0, Math.floor((todayUtc - loggedDate) / (1000 * 60 * 60 * 24)));
+};
+
 interface ViewProductLostModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -293,6 +306,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
               const prod = products.find((p) => p.id === log.productId);
               const price = prod ? prod.sellingPrice : 0;
               const totalVal = price * log.quantity;
+              const daysMissing = getDaysMissing(log.date);
 
               return (
                 <div
@@ -319,7 +333,9 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
                           <h4 className="text-sm font-bold text-white">{log.productName}</h4>
                           <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 text-[10px] font-bold border border-rose-500/30 flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
-                            <span>Missing ({log.quantity} pcs)</span>
+                            <span>
+                              Missing ({log.quantity} pc{log.quantity === 1 ? '' : 's'}, {daysMissing} day{daysMissing === 1 ? '' : 's'} missing)
+                            </span>
                           </span>
                         </div>
 

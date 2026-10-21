@@ -29,7 +29,13 @@ function getLocalDateKey(value: string | undefined): string | null {
 }
 
 export const DashboardView: React.FC = () => {
-  const { customers, orders, expenses, transactions, products } = useStore();
+  const {
+    customers,
+    orders,
+    expenses,
+    transactions,
+    products,
+  } = useStore();
 
   const [dateFilter, setDateFilter] = useState<DateFilterPreset>('all');
   const [customStart, setCustomStart] = useState<string>('');

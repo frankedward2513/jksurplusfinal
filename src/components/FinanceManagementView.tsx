@@ -81,6 +81,13 @@ export const FinanceManagementView: React.FC = () => {
   const [accountDesc, setAccountDesc] = useState('');
   const [accountColor, setAccountColor] = useState('#f97316');
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const accountFormRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editingAccountId) {
+      accountFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [editingAccountId]);
 
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -480,7 +487,7 @@ export const FinanceManagementView: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in pb-16">
       {/* 3 Finance Navigation Buttons */}
-      <div className="p-3 rounded-2xl glass-panel flex flex-wrap items-center gap-2">
+      <div className="sticky top-16 sm:top-20 z-30 p-3 rounded-2xl glass-panel flex flex-wrap items-center gap-2">
         <button
           onClick={() => setActiveTab('accounts')}
           className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
@@ -531,7 +538,7 @@ export const FinanceManagementView: React.FC = () => {
       {activeTab === 'accounts' && (
         <div className="space-y-6">
           {/* Form */}
-          <div className="p-6 rounded-3xl glass-panel space-y-4">
+          <div ref={accountFormRef} className="p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-orange-400" />

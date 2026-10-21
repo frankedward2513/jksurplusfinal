@@ -149,3 +149,12 @@ export interface ItemStatusLog {
   foundDate?: string;
   foundNotes?: string;
 }
+
+export interface TrashItem {
+  id: string;
+  tableName: string;
+  recordId: string;
+  recordData: Record<string, unknown>;
+  deletedAt: string;
+  expiresAt: string;
+}

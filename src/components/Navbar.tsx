@@ -18,6 +18,7 @@ import {
   Shield,
   UserCheck,
   LogIn,
+  Trash2,
 } from 'lucide-react';
 
 export type ActiveTab =
@@ -27,7 +28,8 @@ export type ActiveTab =
   | 'forecasting'
   | 'ai_chat'
   | 'showcase'
-  | 'pos';
+  | 'pos'
+  | 'exbin';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -62,6 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'finance' as ActiveTab, label: 'Finance Management', icon: DollarSign },
         { id: 'forecasting' as ActiveTab, label: 'Sales Forecast', icon: TrendingUp },
         { id: 'ai_chat' as ActiveTab, label: 'Hi Im your AI Exins', icon: Sparkles },
+        { id: 'exbin' as ActiveTab, label: 'exBIN', icon: Trash2 },
         { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
         { id: 'pos' as ActiveTab, label: 'POS', icon: Store },
       ];
