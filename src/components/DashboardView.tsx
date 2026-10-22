@@ -10,10 +10,21 @@ import {
   Percent,
   Filter,
   Users,
+  ArrowRight,
+  AlertTriangle,
+  Clock3,
+  CalendarDays,
+  ReceiptText,
+  Boxes,
 } from 'lucide-react';
 import { PAGE_SIZE, Pagination } from './Pagination';
+import type { ActiveTab } from './Navbar';
 
 type DateFilterPreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'custom';
+
+interface DashboardViewProps {
+  onNavigate: (tab: ActiveTab) => void;
+}
 
 function getLocalDateKey(value: string | undefined): string | null {
   if (!value) return null;
@@ -28,11 +39,12 @@ function getLocalDateKey(value: string | undefined): string | null {
   return `${year}-${month}-${day}`;
 }
 
-export const DashboardView: React.FC = () => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const {
     customers,
     orders,
     expenses,
+    expenseAccounts,
     transactions,
     products,
   } = useStore();
@@ -205,6 +217,116 @@ export const DashboardView: React.FC = () => {
     (monthlyBreakdownPage - 1) * PAGE_SIZE,
     monthlyBreakdownPage * PAGE_SIZE,
   );
+
+  const categoryPerformance = useMemo(() => {
+    const quantityByCategory = new Map<string, number>();
+    const productCategories = new Map(products.map((product) => [product.id, product.category || 'Uncategorized']));
+
+    orders
+      .filter((order) => order.status !== 'cancelled')
+      .forEach((order) => {
+        order.items.forEach((item) => {
+          const category = productCategories.get(item.productId) || 'Uncategorized';
+          quantityByCategory.set(category, (quantityByCategory.get(category) || 0) + item.quantity);
+        });
+      });
+
+    return [...quantityByCategory.entries()]
+      .map(([name, unitsSold]) => ({ name, unitsSold }))
+      .sort((a, b) => b.unitsSold - a.unitsSold || a.name.localeCompare(b.name))
+      .slice(0, 5);
+  }, [orders, products]);
+
+  const lowStockCategories = useMemo(() => {
+    const categoryTotals = new Map<string, { name: string; availableUnits: number; productCount: number }>();
+    products.forEach((product) => {
+      const name = product.category?.trim() || 'Uncategorized';
+      const key = name.toLowerCase();
+      const category = categoryTotals.get(key) || { name, availableUnits: 0, productCount: 0 };
+      category.availableUnits += Number(product.availableQuantity) || 0;
+      category.productCount += 1;
+      categoryTotals.set(key, category);
+    });
+
+    return [...categoryTotals.values()]
+      .filter((category) => category.availableUnits < 50)
+      .sort((a, b) => a.availableUnits - b.availableUnits || a.name.localeCompare(b.name));
+  }, [products]);
+
+  const expenseAccountTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    expenses.forEach((expense) => {
+      const key = expense.accountId || expense.accountName;
+      totals.set(key, (totals.get(key) || 0) + (Number(expense.amount) || 0));
+    });
+
+    return expenseAccounts
+      .map((account) => ({
+        id: account.id,
+        name: account.name,
+        total: totals.get(account.id) ?? totals.get(account.name) ?? Number(account.totalSpent) ?? 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [expenseAccounts, expenses]);
+
+  const forecastSummary = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dailySales: number[] = [];
+
+    for (let dayOffset = 29; dayOffset >= 0; dayOffset -= 1) {
+      const day = new Date(today);
+      day.setDate(today.getDate() - dayOffset);
+      const dateKey = getLocalDateKey(day.toISOString());
+      dailySales.push(
+        salesInflows
+          .filter((sale) => getLocalDateKey(sale.date) === dateKey)
+          .reduce((sum, sale) => sum + sale.amount, 0),
+      );
+    }
+
+    const dailyForecast = dailySales.reduce(
+      (smoothed, actual, index) => index === 0 ? actual : 0.3 * actual + 0.7 * smoothed,
+      0,
+    );
+
+    return [
+      { label: 'Next day', value: dailyForecast },
+      { label: 'Next week', value: dailyForecast * 7 },
+      { label: 'Next month', value: dailyForecast * 30 },
+    ];
+  }, [salesInflows]);
+
+  const slowMovingProducts = useMemo(() => {
+    const lastSoldByProduct = new Map<string, string>();
+    orders
+      .filter((order) => order.status !== 'cancelled')
+      .forEach((order) => {
+        const saleDate = getLocalDateKey(order.createdAt);
+        if (!saleDate) return;
+        order.items.forEach((item) => {
+          const lastSold = lastSoldByProduct.get(item.productId);
+          if (!lastSold || saleDate > lastSold) lastSoldByProduct.set(item.productId, saleDate);
+        });
+      });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return products
+      .map((product) => {
+        const lastSoldDate = lastSoldByProduct.get(product.id);
+        const referenceDate = lastSoldDate || getLocalDateKey(product.createdAt);
+        if (!referenceDate) return null;
+        const [year, month, day] = referenceDate.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        const idleDays = Math.max(0, Math.floor((today.getTime() - date.getTime()) / 86_400_000));
+        return { ...product, idleDays };
+      })
+      .filter((product): product is NonNullable<typeof product> => product !== null)
+      .sort((a, b) => b.idleDays - a.idleDays || a.name.localeCompare(b.name))
+      .slice(0, 10);
+  }, [orders, products]);
 
   // Graph points generation for the Line Graph (Sales Inflow vs Expense Outflow)
   const lineGraphData = useMemo(() => {
@@ -611,6 +733,218 @@ export const DashboardView: React.FC = () => {
           </div>
         )}
       </div>
+
+      <section aria-label="Additional business insights" className="space-y-5">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div className="p-5 sm:p-6 rounded-2xl glass-panel space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-orange-500/20 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  Best-selling categories
+                </h2>
+                <p className="text-xs text-stone-400 mt-1">Ranked by units sold across completed and active orders</p>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1">
+                Top 5
+              </span>
+            </div>
+            {categoryPerformance.length === 0 ? (
+              <p className="py-8 text-center text-sm text-stone-400">Sales by category will appear here once products are sold.</p>
+            ) : (
+              <div className="space-y-4">
+                {categoryPerformance.map((category, index) => {
+                  const leadingUnits = categoryPerformance[0].unitsSold || 1;
+                  return (
+                    <div key={category.name}>
+                      <div className="flex items-center justify-between gap-3 text-sm mb-1.5">
+                        <span className="min-w-0 truncate text-stone-200">
+                          <span className="inline-flex w-6 text-xs font-bold text-stone-500">{String(index + 1).padStart(2, '0')}</span>
+                          {category.name}
+                        </span>
+                        <span className="shrink-0 font-semibold text-emerald-300">{category.unitsSold} units</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-stone-900/70 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-400"
+                          style={{ width: `${(category.unitsSold / leadingUnits) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 sm:p-6 rounded-2xl glass-panel space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-orange-500/20 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  Low stock watchlist
+                </h2>
+                <p className="text-xs text-stone-400 mt-1">Categories with fewer than 50 units in total across their products</p>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
+                {lowStockCategories.length} categories
+              </span>
+            </div>
+            {lowStockCategories.length === 0 ? (
+              <p className="py-8 text-center text-sm text-stone-400">All categories have at least 50 units in stock.</p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto divide-y divide-stone-700/50">
+                {lowStockCategories.slice(0, 8).map((category) => (
+                  <div key={category.name.toLowerCase()} className="flex items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-stone-200">{category.name}</p>
+                      <p className="text-xs text-stone-500 truncate">
+                        {category.productCount} {category.productCount === 1 ? 'product' : 'products'}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                      category.availableUnits <= 0
+                        ? 'bg-rose-500/15 text-rose-300'
+                        : 'bg-amber-500/15 text-amber-300'
+                    }`}>
+                      {category.availableUnits <= 0 ? 'Out of stock' : `${category.availableUnits} units`}
+                    </span>
+                  </div>
+                ))}
+                {lowStockCategories.length > 8 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('inventory')}
+                    className="w-full pt-3 text-left text-xs font-semibold text-orange-300 hover:text-orange-200"
+                  >
+                    View all {lowStockCategories.length} low-stock categories
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div className="p-5 sm:p-6 rounded-2xl glass-panel space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-orange-500/20 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ReceiptText className="w-5 h-5 text-rose-400" />
+                  Expense accounts
+                </h2>
+                <p className="text-xs text-stone-400 mt-1">Highest total spend, ranked by account</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('finance')}
+                className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-orange-300 hover:text-orange-200"
+              >
+                View details <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {expenseAccountTotals.length === 0 ? (
+              <p className="py-8 text-center text-sm text-stone-400">Expense accounts will appear here once set up.</p>
+            ) : (
+              <div className="space-y-3">
+                {expenseAccountTotals.map((account, index) => {
+                  const maxSpend = expenseAccountTotals[0].total || 1;
+                  return (
+                    <div key={account.id}>
+                      <div className="flex items-center justify-between gap-3 text-sm mb-1.5">
+                        <span className="min-w-0 truncate text-stone-200">
+                          <span className="inline-flex w-6 text-xs font-bold text-stone-500">{index + 1}.</span>
+                          {account.name}
+                        </span>
+                        <span className="shrink-0 font-semibold text-rose-300">₱{account.total.toLocaleString()}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-stone-900/70 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-rose-600 to-orange-400"
+                          style={{ width: `${Math.max(0, (account.total / maxSpend) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 sm:p-6 rounded-2xl glass-panel space-y-4">
+            <div className="flex items-start justify-between gap-3 border-b border-orange-500/20 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <CalendarDays className="w-5 h-5 text-sky-400" />
+                  Sales forecast summary
+                </h2>
+                <p className="text-xs text-stone-400 mt-1">Projected sales from the recent daily sales trend</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('forecasting')}
+                className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-orange-300 hover:text-orange-200"
+              >
+                View details <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {forecastSummary.map((forecast) => (
+                <div key={forecast.label} className="rounded-xl border border-sky-400/15 bg-sky-500/[0.06] p-4">
+                  <p className="text-xs font-medium text-stone-400">{forecast.label}</p>
+                  <p className="mt-1 text-lg font-black text-sky-300">₱{Math.round(forecast.value).toLocaleString()}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-stone-500">Estimate uses 30 days of sales history and the same exponential smoothing approach as Sales Forecast.</p>
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-6 rounded-2xl glass-panel space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-orange-500/20 pb-3">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Clock3 className="w-5 h-5 text-orange-400" />
+                Slow-moving products
+              </h2>
+              <p className="text-xs text-stone-400 mt-1">Top 10 products with the longest time since their last sale</p>
+            </div>
+            <span className="text-xs px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-300 font-semibold">
+              {slowMovingProducts.length} products
+            </span>
+          </div>
+          {slowMovingProducts.length === 0 ? (
+            <p className="py-8 text-center text-sm text-stone-400">Add products to see slow-moving inventory.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+              {slowMovingProducts.map((product) => (
+                <div key={product.id} className="min-w-0 overflow-hidden rounded-xl border border-stone-700/60 bg-stone-950/25">
+                  <div className="relative h-32 bg-stone-900/60 flex items-center justify-center overflow-hidden">
+                    {product.imageUrl ? (
+                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <Boxes className="w-9 h-9 text-stone-600" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="truncate text-sm font-semibold text-stone-100" title={product.name}>{product.name}</p>
+                    <p className="mt-1 truncate text-[11px] text-stone-400" title={product.baleCode || product.barcode}>
+                      Code: {product.baleCode || product.barcode || '—'}
+                    </p>
+                    <p className="mt-1 truncate text-[11px] text-stone-500">{product.category || 'Uncategorized'}</p>
+                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-stone-700/60 pt-2">
+                      <span className="text-[10px] text-stone-400">Days not sold</span>
+                      <span className="shrink-0 text-xs font-bold text-orange-300">
+                        {product.idleDays} {product.idleDays === 1 ? 'day' : 'days'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 };

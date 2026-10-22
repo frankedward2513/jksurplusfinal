@@ -108,23 +108,29 @@ export const InventoryManagementView: React.FC = () => {
     e.preventDefault();
     if (
       !baleName.trim() ||
+      !baleCategory.trim() ||
+      !baleSupplierId ||
       !Number.isFinite(Number(balePrice)) ||
       Number(balePrice) <= 0 ||
       !Number.isInteger(Number(baleQuantity)) ||
       Number(baleQuantity) <= 0
     ) {
-      showFormAlert('Enter a bale name, a purchase price greater than zero, and a whole-number quantity greater than zero.');
+      showFormAlert('Enter a bale name, select a product category and supplier, and provide a purchase price and whole-number quantity greater than zero.');
       return;
     }
 
     const suppObj = suppliers.find((s) => s.id === baleSupplierId);
-    const supplierName = suppObj ? suppObj.name : 'Direct Import';
+    if (!suppObj) {
+      showFormAlert('Select a valid supplier before saving this bale.');
+      return;
+    }
+    const supplierName = suppObj.name;
 
     if (editingBaleId) {
       await updateBale(editingBaleId, {
         baleCode,
         baleName: baleName.trim(),
-        category: baleCategory || 'General Apparel',
+        category: baleCategory,
         supplierId: baleSupplierId,
         supplierName,
         totalPurchasePrice: Number(balePrice),
@@ -137,7 +143,7 @@ export const InventoryManagementView: React.FC = () => {
       await addBale({
         baleCode,
         baleName: baleName.trim(),
-        category: baleCategory || 'General Apparel',
+        category: baleCategory,
         supplierId: baleSupplierId,
         supplierName,
         totalPurchasePrice: Number(balePrice),
@@ -411,6 +417,10 @@ export const InventoryManagementView: React.FC = () => {
       showFormAlert('Please enter a supplier or company name.');
       return;
     }
+    if (!contactPerson.trim()) {
+      showFormAlert('Please enter the supplier contact person.');
+      return;
+    }
     if (supplierEmail.trim() && !isValidEmail(supplierEmail)) {
       showFormAlert('Please enter a valid supplier email address.');
       return;
@@ -568,9 +578,10 @@ export const InventoryManagementView: React.FC = () => {
 
                 {/* Contact Person */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Contact Person</label>
+                  <label className="block font-medium text-stone-300 mb-1">Contact Person *</label>
                   <input
                     type="text"
+                    required
                     placeholder="e.g. Mr. Robert Tan"
                     value={contactPerson}
                     onChange={(e) => setContactPerson(e.target.value)}
@@ -948,7 +959,7 @@ export const InventoryManagementView: React.FC = () => {
                 {/* Product Category - Direct Selection from Product Categories */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-medium text-stone-300">Product Category</label>
+                    <label className="font-medium text-stone-300">Product Category *</label>
                     <button
                       type="button"
                       onClick={() => setActiveTab('categories')}
@@ -961,6 +972,7 @@ export const InventoryManagementView: React.FC = () => {
                   <select
                     value={baleCategory}
                     onChange={(e) => setBaleCategory(e.target.value)}
+                    required
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200 cursor-pointer hover:border-orange-500/50"
                   >
                     <option value="">-- Select Product Category ({categories.length} available) --</option>
@@ -978,7 +990,7 @@ export const InventoryManagementView: React.FC = () => {
                 {/* Select Supplier */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-medium text-stone-300">Select Supplier</label>
+                    <label className="font-medium text-stone-300">Select Supplier *</label>
                     <button
                       type="button"
                       onClick={() => setActiveTab('suppliers')}
@@ -990,9 +1002,10 @@ export const InventoryManagementView: React.FC = () => {
                   <select
                     value={baleSupplierId}
                     onChange={(e) => setBaleSupplierId(e.target.value)}
+                    required
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200 cursor-pointer hover:border-orange-500/50"
                   >
-                    <option value="">Direct Import / Unassigned</option>
+                    <option value="">-- Select Supplier ({suppliers.length} available) --</option>
                     {suppliers.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} ({s.contactPerson || 'Supplier'})
