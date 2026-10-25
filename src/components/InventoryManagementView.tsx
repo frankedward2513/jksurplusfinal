@@ -651,7 +651,7 @@ export const InventoryManagementView: React.FC = () => {
             </form> 
           </div>
 
-          {/* Supplier Cards Display (Mobile-optimized responsive grid) */}
+          {/* Card Display */}
           <div className="space-y-3">
             <h3 className="text-base font-bold text-white">Registered Bale Suppliers</h3>
             {suppliers.length === 0 ? (
@@ -682,6 +682,7 @@ export const InventoryManagementView: React.FC = () => {
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
+                          
                           <button
                             type="button"
                             onClick={() => {
@@ -786,7 +787,7 @@ export const InventoryManagementView: React.FC = () => {
                 </div>
                 {/* Category Accent Color */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Category Accent Color</label>
+                  <label className="block font-medium text-stone-300 mb-1">Category Color</label>
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
@@ -794,13 +795,6 @@ export const InventoryManagementView: React.FC = () => {
                       onChange={(e) => setCategoryColor(e.target.value)}
                       className="w-10 h-10 rounded-xl cursor-pointer bg-transparent border-0"
                     />
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-5 h-5 rounded-full border border-white/20 shadow"
-                        style={{ backgroundColor: categoryColor }}
-                      />
-                      <span className="font-mono text-xs text-stone-300">{categoryColor}</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -816,11 +810,10 @@ export const InventoryManagementView: React.FC = () => {
             </form>
           </div>
 
-          {/* Categories Grid (Mobile-friendly responsive cards) */}
+          {/* Card Display */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-white">Registered Categories</h3>
-              <span className="text-xs text-stone-400">{categories.length} total categories</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
@@ -831,7 +824,6 @@ export const InventoryManagementView: React.FC = () => {
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-3">
-                      {/* Category Color Indicator */}
                       <div className="flex items-center gap-3">
                         {/* Category Color */}
                         <span
