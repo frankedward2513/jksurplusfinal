@@ -19,6 +19,9 @@ import {
   UserCheck,
   LogIn,
   Trash2,
+  ClipboardList,
+  ChevronDown,
+  ReceiptText,
 } from 'lucide-react';
 
 export type ActiveTab =
@@ -29,7 +32,9 @@ export type ActiveTab =
   | 'ai_chat'
   | 'showcase'
   | 'pos'
-  | 'exbin';
+  | 'exbin'
+  | 'status_log'
+  | 'receipts';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -44,6 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { isDarkMode, toggleDarkMode, currentUser, logout, showFormAlert } = useStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [othersOpen, setOthersOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -51,7 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown sign-out error.';
       console.error('Sign out failed:', error);
-      showFormAlert(`Sign out failed: ${message}`);
+      showFormAlert(`Sign out failed: ${message}`, 'error');
     }
   };
 
@@ -64,9 +70,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'finance' as ActiveTab, label: 'Finance Management', icon: DollarSign },
         { id: 'forecasting' as ActiveTab, label: 'Sales Forecast', icon: TrendingUp },
         { id: 'ai_chat' as ActiveTab, label: 'Hi Im your AI Exins', icon: Sparkles },
-        { id: 'exbin' as ActiveTab, label: 'exBIN', icon: Trash2 },
-        { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
-        { id: 'pos' as ActiveTab, label: 'POS', icon: Store },
       ];
     } else if (currentUser.role === 'staff') {
       return [
@@ -80,6 +83,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const navItems = getNavItems();
+  const otherNavItems =
+    currentUser.role === 'owner'
+      ? [
+          { id: 'exbin' as ActiveTab, label: 'exBIN', icon: Trash2 },
+          { id: 'status_log' as ActiveTab, label: 'Status Log', icon: ClipboardList },
+          { id: 'receipts' as ActiveTab, label: 'Receipts', icon: ReceiptText },
+          { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
+          { id: 'pos' as ActiveTab, label: 'POS', icon: Store },
+        ]
+      : [];
+
+  const selectTab = (tab: ActiveTab) => {
+    onSelectTab(tab);
+  };
+
   return (
     <nav className="sticky top-0 z-40 w-full backdrop-blur-xl bg-stone-950/75 border-b border-orange-500/20 transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -128,6 +146,45 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               );
             })}
+            {otherNavItems.length > 0 && (
+              <div className="relative flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOthersOpen((open) => !open)}
+                  aria-expanded={othersOpen}
+                  aria-label="Others"
+                  className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-bold transition ${
+                    othersOpen || otherNavItems.some((item) => item.id === activeTab)
+                      ? 'border-orange-400/40 bg-orange-600/20 text-orange-200'
+                      : 'border-orange-500/20 bg-stone-900/80 text-stone-300 hover:border-orange-500/50 hover:text-white'
+                  }`}
+                >
+                  Others
+                  <ChevronDown className={`h-4 w-4 transition-transform ${othersOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {othersOpen &&
+                  otherNavItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => selectTab(item.id)}
+                        aria-label={item.label}
+                        title={item.label}
+                        className={`rounded-2xl border p-2.5 transition ${
+                          isActive
+                            ? 'border-orange-400/40 bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-lg'
+                            : 'border-transparent text-stone-300 hover:border-orange-500/20 hover:bg-stone-800/80 hover:text-white'
+                        }`}
+                      >
+                        <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-orange-400'}`} />
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           {/* Right Action Icons: Dark Mode, Profile */}
@@ -314,6 +371,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   );
                 })}
+                {otherNavItems.length > 0 && (
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setOthersOpen((open) => !open)}
+                      aria-expanded={othersOpen}
+                      className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition ${
+                        othersOpen || otherNavItems.some((item) => item.id === activeTab)
+                          ? 'bg-orange-500/15 text-orange-200'
+                          : 'text-stone-300 hover:bg-stone-800'
+                      }`}
+                    >
+                      <span>Others</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${othersOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {othersOpen &&
+                      otherNavItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = activeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              selectTab(item.id);
+                              setMobileMenuOpen(false);
+                            }}
+                            className={`ml-3 flex w-[calc(100%-0.75rem)] items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition ${
+                              isActive
+                                ? 'bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-md'
+                                : 'text-stone-300 hover:bg-stone-800'
+                            }`}
+                          >
+                            <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-orange-400'}`} />
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             </div>
           </div>,

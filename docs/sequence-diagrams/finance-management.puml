@@ -1,0 +1,80 @@
+@startuml
+title Finance Management — accounts, expenses and transactions
+autonumber
+
+actor Owner
+boundary "Finance Management View" as View
+control "Store Context" as Store
+control "Supabase Client" as Supabase
+database "PostgreSQL" as DB
+
+== Load finance data ==
+activate Store
+Store -> Supabase: Select expense accounts,\nexpenses and transactions
+activate Supabase
+Supabase -> DB: Read finance tables
+activate DB
+DB --> Supabase: Finance records
+deactivate DB
+Supabase --> Store: Loaded records
+deactivate Supabase
+Store --> View: Provide finance state
+deactivate Store
+View --> Owner: Display account, record and history tabs
+
+alt Create or edit an expense account
+  Owner -> View: Enter account name and monthly budget
+  activate View
+  View -> View: Validate required fields and budget
+  View -> Store: addExpenseAccount(details)\nor updateExpenseAccount(id, details)
+  activate Store
+  Store -> Store: Update local account state
+  Store -> Supabase: Upsert or update expense account
+  activate Supabase
+  Supabase -> DB: Persist expense account
+  activate DB
+  DB --> Supabase: Save result
+  deactivate DB
+  Supabase --> Store: Save result
+  deactivate Supabase
+  Store --> View: Complete account save
+  deactivate Store
+  View --> Owner: Refresh account and budget display
+  deactivate View
+else Record an expense disbursement
+  Owner -> View: Select account and submit expense
+  activate View
+  View -> View: Validate account and amount
+  View -> Store: addExpense(expense details)
+  activate Store
+  Store -> Store: Create expense and matching outflow transaction
+  Store -> Supabase: Insert expense
+  activate Supabase
+  Supabase -> DB: Persist expense row
+  activate DB
+  DB --> Supabase: Expense saved
+  deactivate DB
+  Store -> Supabase: Insert outflow transaction
+  Supabase -> DB: Persist transaction row
+  activate DB
+  DB --> Supabase: Transaction saved
+  deactivate DB
+  Supabase --> Store: Save results
+  deactivate Supabase
+  Store --> View: Refresh expenses and history
+  deactivate Store
+  View --> Owner: Open transaction history
+  deactivate View
+end
+
+opt Finance data changes in another session
+  DB -> Supabase: PostgreSQL change event
+  activate Supabase
+  Supabase -> Store: Reload affected finance table
+  activate Store
+  Store --> View: Provide updated finance state
+  deactivate Store
+  deactivate Supabase
+  View --> Owner: Refresh totals and transaction history
+end
+@enduml

@@ -1,0 +1,67 @@
+@startuml
+title Point of Sale — checkout and inventory update
+autonumber
+
+actor "Owner / Staff" as User
+boundary "POS View" as View
+control "Store Context" as Store
+control "Supabase Client" as Supabase
+database "PostgreSQL" as DB
+boundary "Receipt Modal" as Receipt
+
+== Prepare sale ==
+activate Store
+Store --> View: Current products and stock
+deactivate Store
+User -> View: Scan or search for product
+activate View
+View -> View: Match product and check available quantity
+View -> User: Add product to cart or show stock error
+User -> View: Confirm quantities, discount and payment
+View -> View: Validate cart, discount and tendered amount
+
+alt Cart or payment details are invalid
+  View --> User: Show validation message
+else Sale is valid
+  View -> Store: completePosSale(items, date,\ncustomer, discount, payment)
+  activate Store
+  Store -> Store: Create order, order number,\nline items, total and change
+  Store -> Store: Deduct product stock and update bale sales
+  loop For each product in the sale
+    Store ->> Supabase: Update product stock
+    activate Supabase
+    Supabase ->> DB: Persist product quantity
+    activate DB
+    Store ->> Supabase: Insert sold item status log
+    Supabase ->> DB: Persist item log
+    opt Product belongs to a bale
+      Store ->> Supabase: Update bale sales total
+      Supabase ->> DB: Persist bale sales total
+    end
+    deactivate DB
+    deactivate Supabase
+  end
+  Store -> Store: Create matching POS inflow transaction
+  Store -> Supabase: Insert order
+  activate Supabase
+  Supabase -> DB: Persist order row
+  activate DB
+  DB --> Supabase: Order saved
+  deactivate DB
+  Store -> Supabase: Insert POS inflow transaction
+  Supabase -> DB: Persist transaction row
+  activate DB
+  DB --> Supabase: Transaction saved
+  deactivate DB
+  Supabase --> Store: Save results
+  deactivate Supabase
+  Store --> View: Completed order
+  View -> View: Clear cart and checkout fields
+  View -> Receipt: Show completed order
+  activate Receipt
+  Receipt --> User: Display receipt and sale summary
+  deactivate Receipt
+  deactivate Store
+end
+deactivate View
+@enduml

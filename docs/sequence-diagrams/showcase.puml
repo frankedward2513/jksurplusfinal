@@ -1,0 +1,53 @@
+@startuml
+title Showcase — browse products and view top customers
+autonumber
+
+actor "Admin / Staff / Customer" as User
+boundary "Showcase Shop View" as View
+control "Store Context" as Store
+control "Supabase Client" as Supabase
+database "PostgreSQL" as DB
+
+== Load public shop data ==
+activate Store
+Store -> Supabase: Select products, categories and orders
+activate Supabase
+Supabase -> DB: Read showcase data
+activate DB
+DB --> Supabase: Product, category and order rows
+deactivate DB
+Supabase --> Store: Loaded records
+deactivate Supabase
+Store --> View: Current products, categories and orders
+deactivate Store
+View --> User: Display shop showcase
+
+alt Browse clothing
+  User -> View: Search, select category\nor set maximum price
+  activate View
+  View -> View: Filter products in memory
+  View --> User: Display matching products
+  deactivate View
+else View top customers
+  User -> View: Select month or custom date range
+  activate View
+  View -> View: Group sales by customer name,\nincluding walk-in sales
+  View -> View: Sort by spend and keep top 10
+  View --> User: Display ranked customers
+  deactivate View
+end
+
+opt Product or order data changes
+  DB -> Supabase: PostgreSQL change event
+  activate Supabase
+  Supabase -> Store: Reload changed table
+  activate Store
+  Store --> View: Updated showcase data
+  deactivate Store
+  deactivate Supabase
+  activate View
+  View -> View: Reapply current search or customer filters
+  View --> User: Refresh displayed results
+  deactivate View
+end
+@enduml

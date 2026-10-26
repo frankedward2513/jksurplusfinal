@@ -40,6 +40,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
   // Filtered products list for fast selection
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
+      if (p.availableQuantity <= 0) return false;
       // Category filter
       if (
         selectedCategory !== 'all' &&
@@ -106,11 +107,11 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-stone-900/95 border border-purple-500/30 rounded-3xl p-5 sm:p-7 shadow-2xl backdrop-blur-xl text-stone-100 my-auto max-h-[92vh] flex flex-col">
+      <div className="relative w-full max-w-2xl rounded-3xl p-5 sm:p-7 shadow-2xl text-stone-100 my-auto max-h-[92vh] flex flex-col glass-panel">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-purple-500/20 shrink-0">
+        <div className="flex items-center justify-between pb-3.5 border-b border-orange-500/20 shrink-0">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-[11px] font-semibold uppercase tracking-wider mb-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[11px] font-semibold uppercase tracking-wider mb-1">
               <HelpCircle className="w-3 h-3" />
               <span>Lost Item Tracking</span>
             </div>
@@ -123,7 +124,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
+            className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-orange-500/10 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -202,7 +203,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                           }
                         }
                       }}
-                      className="w-full pl-10 pr-16 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 placeholder:text-stone-500 text-xs sm:text-sm focus:outline-none focus:border-orange-500"
+                      className="w-full pl-10 pr-16 py-2.5 rounded-xl bg-orange-500/5 border border-orange-500/25 text-stone-100 placeholder:text-stone-500 text-xs sm:text-sm focus:outline-none focus:border-orange-500"
                     />
                     {searchQuery && (
                       <button
@@ -237,11 +238,13 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                         : 'bg-stone-950 border border-stone-800 text-stone-400 hover:text-white'
                     }`}
                   >
-                    All Categories ({products.length})
+                    All Categories ({products.filter((product) => product.availableQuantity > 0).length})
                   </button>
                   {categories.map((c) => {
                     const count = products.filter(
-                      (p) => p.category?.toLowerCase() === c.name?.toLowerCase()
+                      (p) =>
+                        p.availableQuantity > 0 &&
+                        p.category?.toLowerCase() === c.name?.toLowerCase()
                     ).length;
                     return (
                       <button
@@ -262,7 +265,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                 </div>
 
                 {/* Product Select List */}
-                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 border border-stone-800 rounded-2xl p-2 bg-stone-950/50">
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 border border-orange-500/20 rounded-2xl p-2 bg-orange-500/5">
                   {filteredProducts.length === 0 ? (
                     <p className="text-center py-6 text-xs text-stone-400">
                       No products match your search or filter.
@@ -299,14 +302,8 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                         </div>
 
                         <div className="shrink-0 text-right">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                              p.availableQuantity <= 0
-                                ? 'bg-rose-950/80 text-rose-300'
-                                : 'bg-emerald-950/80 text-emerald-300'
-                            }`}
-                          >
-                            {p.availableQuantity} in stock
+                          <span className="rounded-full bg-emerald-950/80 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                            {p.availableQuantity} available
                           </span>
                         </div>
                       </div>
@@ -317,28 +314,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
             )}
           </div>
 
-          {/* 2. EVENT TYPE: LOST */}
-          <div>
-            <label className="block text-xs font-bold text-stone-200 uppercase tracking-wider mb-2">
-              2. Disposition Type
-            </label>
-            <div className="p-3.5 rounded-2xl bg-purple-950/30 border border-purple-500/40 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400">
-                  <HelpCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-sm text-purple-300">Lost Item</span>
-                  <p className="text-[11px] text-stone-400">Automatically deducts stock from inventory</p>
-                </div>
-              </div>
-              <span className="text-xs font-mono font-bold text-purple-400 bg-purple-900/40 px-2.5 py-1 rounded-lg border border-purple-500/30">
-                -Deducts Stock
-              </span>
-            </div>
-          </div>
-
-          {/* 3. QUANTITY & REASON */}
+          {/* Quantity & reason */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
               <label className="block text-xs font-bold text-stone-200 uppercase tracking-wider mb-1.5">
@@ -360,7 +336,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                   required
                   value={logQty}
                   onChange={(e) => setLogQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="flex-1 py-2 px-3 text-center rounded-xl bg-stone-950 border border-orange-500/25 text-white font-mono font-bold text-base focus:outline-none focus:border-orange-500"
+                  className="flex-1 py-2 px-3 text-center rounded-xl bg-orange-500/5 border border-orange-500/25 text-white font-mono font-bold text-base focus:outline-none focus:border-orange-500"
                 />
                 <button
                   type="button"
@@ -381,7 +357,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                 placeholder="e.g. Missing from store rack, transit loss, miscount..."
                 value={logNotes}
                 onChange={(e) => setLogNotes(e.target.value)}
-                className="w-full py-2.5 px-3 rounded-xl bg-stone-950 border border-orange-500/25 text-stone-100 placeholder:text-stone-500 text-xs focus:outline-none focus:border-orange-500"
+                className="w-full py-2.5 px-3 rounded-xl bg-orange-500/5 border border-orange-500/25 text-stone-100 placeholder:text-stone-500 text-xs focus:outline-none focus:border-orange-500"
               />
             </div>
           </div>
@@ -390,7 +366,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
           <button
             type="submit"
             disabled={!selectedProductId || isSubmitting}
-            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-500 hover:to-indigo-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-600/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
+            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-orange-600/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
           >
             <HelpCircle className="w-4 h-4" />
             <span>Confirm & Log Lost Item</span>

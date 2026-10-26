@@ -34,9 +34,22 @@ export const ShowcaseShopView: React.FC = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
+  const availableProducts = useMemo(
+    () => products.filter((product) => product.availableQuantity > 0),
+    [products],
+  );
+  const visibleCategories = useMemo(
+    () =>
+      categories.filter((category) =>
+        availableProducts.some(
+          (product) => product.category?.toLowerCase() === category.name.toLowerCase(),
+        ),
+      ),
+    [availableProducts, categories],
+  );
   const filteredProducts = useMemo(
     () =>
-      products.filter((product) => {
+      availableProducts.filter((product) => {
         const query = searchQuery.trim().toLowerCase();
         const matchesSearch =
           !query ||
@@ -51,27 +64,9 @@ export const ShowcaseShopView: React.FC = () => {
           maxPrice === null || (Number.isFinite(maxPrice) && product.sellingPrice <= maxPrice);
         return matchesSearch && matchesCategory && matchesMaximumPrice;
       }),
-    [products, searchQuery, selectedCategory, maximumPrice],
+    [availableProducts, searchQuery, selectedCategory, maximumPrice],
   );
-
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>([currentMonth]);
-    orders.forEach((order) => {
-      const date = new Date(order.createdAt);
-      if (!Number.isNaN(date.getTime())) {
-        months.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-      }
-    });
-    return Array.from(months).sort().reverse();
-  }, [orders, currentMonth]);
-
-  const formatMonthLabel = (yearMonth: string) => {
-    const [year, month] = yearMonth.split('-');
-    const date = new Date(Number(year), Number(month) - 1, 1);
-    return Number.isNaN(date.getTime())
-      ? yearMonth
-      : date.toLocaleString(undefined, { month: 'long', year: 'numeric' });
-  };
+  const hasAvailableProducts = availableProducts.length > 0;
 
   const top10Customers = useMemo(() => {
     const customerMap = new Map<string, CustomerSpend>();
@@ -230,7 +225,7 @@ export const ShowcaseShopView: React.FC = () => {
               >
                 All Items
               </button>
-              {categories.map((category) => (
+              {visibleCategories.map((category) => (
                 <button
                   key={category.id}
                   type="button"
@@ -256,8 +251,8 @@ export const ShowcaseShopView: React.FC = () => {
               <Shirt className="mx-auto h-10 w-10 text-orange-400 opacity-60" />
               <h2 className="text-lg font-bold text-white">No Products Available</h2>
               <p className="mx-auto max-w-md text-xs text-stone-400">
-                {products.length === 0
-                  ? 'No clothing has been listed yet.'
+                {!hasAvailableProducts
+                  ? 'No clothing is currently available.'
                   : 'No products match your search, category, and maximum price.'}
               </p>
             </div>
@@ -283,19 +278,6 @@ export const ShowcaseShopView: React.FC = () => {
                     )}
                     <span className="absolute left-3 top-3 rounded-lg border border-orange-500/30 bg-stone-950/80 px-2.5 py-1 text-xs font-bold text-orange-400">
                       Size: {product.size || 'Free Size'}
-                    </span>
-                    <span
-                      className={`absolute right-3 top-3 rounded-lg border px-2.5 py-1 text-xs font-bold ${
-                        product.availableQuantity <= 0
-                          ? 'border-rose-500/30 bg-rose-950/90 text-rose-300'
-                          : product.availableQuantity <= 3
-                            ? 'border-amber-500/30 bg-amber-950/90 text-amber-300'
-                            : 'border-emerald-500/30 bg-emerald-950/80 text-emerald-400'
-                      }`}
-                    >
-                      {product.availableQuantity <= 0
-                        ? 'Sold Out'
-                        : `${product.availableQuantity} in stock`}
                     </span>
                   </div>
                   <div className="flex flex-1 flex-col justify-between space-y-4 p-5">
@@ -377,20 +359,8 @@ export const ShowcaseShopView: React.FC = () => {
                   aria-label="Choose month and year"
                   value={selectedMonth}
                   onChange={(event) => setSelectedMonth(event.target.value)}
-                  className="cursor-pointer rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-white"
+                  className="showcase-custom-date cursor-pointer rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-white"
                 />
-                <select
-                  id="top-customers-month"
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                  className="cursor-pointer rounded-xl border border-stone-800 bg-stone-900 px-3 py-2 text-stone-200"
-                >
-                  {availableMonths.map((month) => (
-                    <option key={month} value={month}>
-                      {formatMonthLabel(month)}
-                    </option>
-                  ))}
-                </select>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-orange-500/20 bg-stone-950/60 p-3.5 text-xs">
@@ -400,7 +370,7 @@ export const ShowcaseShopView: React.FC = () => {
                     type="date"
                     value={customStartDate}
                     onChange={(event) => setCustomStartDate(event.target.value)}
-                    className="rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-1.5 text-white"
+                    className="showcase-custom-date rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-1.5 text-white"
                   />
                 </label>
                 <label className="flex items-center gap-2 text-stone-400">
@@ -409,7 +379,7 @@ export const ShowcaseShopView: React.FC = () => {
                     type="date"
                     value={customEndDate}
                     onChange={(event) => setCustomEndDate(event.target.value)}
-                    className="rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-1.5 text-white"
+                    className="showcase-custom-date rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-1.5 text-white"
                   />
                 </label>
                 {(customStartDate || customEndDate) && (

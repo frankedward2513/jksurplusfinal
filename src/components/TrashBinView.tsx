@@ -80,7 +80,7 @@ export const TrashBinView: React.FC = () => {
 
   return (
     <section className="space-y-6">
-      <header className="flex flex-col gap-4 rounded-3xl border border-orange-500/20 bg-stone-950/75 p-5 shadow-xl backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-7">
+      <header className="flex flex-col gap-4 rounded-3xl p-5 glass-panel sm:flex-row sm:items-center sm:justify-between sm:p-7">
         <div className="flex items-start gap-4">
           <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-3 text-orange-400">
             <Trash2 className="h-6 w-6" />
@@ -88,7 +88,7 @@ export const TrashBinView: React.FC = () => {
           <div>
             <h1 className="text-2xl font-black text-white">exBIN</h1>
             <p className="mt-1 text-sm text-stone-400">
-              Deleted records stay here for 30 days. Restore items individually or select several.
+              Deleted records stay here for 30 days, then move to the archive. Restore items individually or select several.
             </p>
           </div>
         </div>
@@ -96,7 +96,7 @@ export const TrashBinView: React.FC = () => {
           type="button"
           onClick={() => void refresh()}
           disabled={isLoading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-700 bg-stone-900 px-4 py-2.5 text-sm font-semibold text-stone-200 transition hover:border-orange-500/50 hover:text-white disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/20 hover:text-white disabled:opacity-50"
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
@@ -110,7 +110,7 @@ export const TrashBinView: React.FC = () => {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-3xl border border-orange-500/20 bg-stone-950/75 shadow-xl backdrop-blur-xl">
+      <div className="overflow-hidden rounded-3xl glass-panel">
         <div className="flex flex-col gap-3 border-b border-stone-800 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <label className="flex items-center gap-3 text-sm font-semibold text-stone-200">
             <input
@@ -142,7 +142,7 @@ export const TrashBinView: React.FC = () => {
           <div className="p-12 text-center">
             <Trash2 className="mx-auto h-10 w-10 text-stone-600" />
             <h2 className="mt-4 font-bold text-stone-200">exBIN is empty</h2>
-            <p className="mt-1 text-sm text-stone-500">Deleted records will appear here for 30 days.</p>
+            <p className="mt-1 text-sm text-stone-500">Deleted records will appear here for 30 days before moving to the archive.</p>
           </div>
         ) : (
           <ul className="divide-y divide-stone-800/80">
@@ -186,7 +186,7 @@ export const TrashBinView: React.FC = () => {
         )}
       </div>
       <p className="text-center text-xs text-stone-500">
-        Items are permanently deleted after 30 days. Only the owner account can access exBIN.
+        Items move to the archive after 30 days. Only the owner account can access exBIN.
       </p>
     </section>
   );

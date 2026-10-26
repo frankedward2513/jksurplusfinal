@@ -90,12 +90,13 @@ interface StoreContextType {
   itemStatusLogs: ItemStatusLog[];
 
   formAlert: string | null;
-  showFormAlert: (message?: string) => void;
+  formAlertType: 'success' | 'error' | 'info';
+  showFormAlert: (message?: string, type?: 'success' | 'error' | 'info') => void;
   clearFormAlert: () => void;
 
   // Bale Management
   addBale: (bale: Omit<Bale, 'id' | 'totalSalesMade' | 'createdAt'>) => Promise<void>;
-  updateBale: (id: string, updates: Partial<Bale>) => Promise<void>;
+  updateBale: (id: string, updates: Partial<Bale>, notify?: boolean) => Promise<void>;
   deleteBale: (id: string) => Promise<void>;
 
   // Category Management
@@ -105,7 +106,7 @@ interface StoreContextType {
 
   // Product Management
   addProduct: (prod: Omit<Product, 'id' | 'createdAt'>) => Promise<void>;
-  updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
+  updateProduct: (id: string, updates: Partial<Product>, notify?: boolean) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
 
   // Supplier Management
@@ -144,6 +145,7 @@ interface StoreContextType {
     quantity: number;
     notes?: string;
     adjustStock?: boolean;
+    notify?: boolean;
   }) => Promise<void>;
   updateItemStatusLog: (
     id: string,
@@ -152,9 +154,10 @@ interface StoreContextType {
       restoreStock?: boolean;
       productId?: string;
       quantityToRestore?: number;
+      notify?: boolean;
     }
   ) => Promise<void>;
-  deleteItemStatusLog: (id: string) => Promise<void>;
+  deleteItemStatusLog: (id: string, notify?: boolean) => Promise<void>;
 
   // exBIN
   fetchTrashItems: () => Promise<TrashItem[]>;
@@ -497,10 +500,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [formAlert, setFormAlert] = useState<string | null>(null);
-  const showFormAlert = (message = 'You have been successfully submitted the form!') => {
+  const [formAlertType, setFormAlertType] = useState<'success' | 'error' | 'info'>('info');
+  const showFormAlert = (
+    message = 'You have been successfully submitted the form!',
+    type: 'success' | 'error' | 'info' = 'info',
+  ) => {
     setFormAlert(message);
+    setFormAlertType(type);
   };
   const clearFormAlert = () => setFormAlert(null);
+  const showMutationError = (action: string, item: string, error: unknown) => {
+    const detail = error instanceof Error ? error.message : String(error);
+    showFormAlert(`Could not ${action} ${item}. ${detail}`, 'error');
+  };
 
   const moveRecordsToTrash = async (
     records: { table_name: string; record_id: string }[],
@@ -511,7 +523,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return true;
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'exbin_trash');
-      showFormAlert('Could not move the selected item to exBIN. Nothing was deleted.');
+      showFormAlert('Could not move the selected item to exBIN. Nothing was deleted.', 'error');
       return false;
     }
   };
@@ -543,16 +555,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!ids.length) return;
     const { error } = await supabase.rpc('exins_restore_trash', { p_trash_ids: ids });
     if (error) throw error;
+    showFormAlert('Selected records restored successfully.', 'success');
   };
-
-  useEffect(() => {
-    if (formAlert) {
-      const timer = setTimeout(() => {
-        setFormAlert(null);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [formAlert]);
 
   // Sync state to localStorage cache
   useEffect(() => {
@@ -918,21 +922,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'bales', id), newBale);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `bales/${id}`);
+      showMutationError('add', 'bale', err);
+      return;
     }
+    showFormAlert('Bale added successfully.', 'success');
   };
 
-  const updateBale = async (id: string, updates: Partial<Bale>) => {
+  const updateBale = async (id: string, updates: Partial<Bale>, notify = true) => {
     setBales((prev) => prev.map((b) => (b.id === id ? { ...b, ...updates } : b)));
     try {
       await updateDoc(doc(db, 'bales', id), updates);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `bales/${id}`);
+      showMutationError('update', 'bale', err);
+      return;
     }
+    if (notify) showFormAlert('Bale updated successfully.', 'success');
   };
 
   const deleteBale = async (id: string) => {
     if (!(await moveRecordsToTrash([{ table_name: 'bales', record_id: id }]))) return;
     setBales((prev) => prev.filter((b) => b.id !== id));
+    showFormAlert('Bale deleted successfully and moved to exBIN.', 'success');
   };
 
   // Category Management
@@ -950,7 +961,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'categories', id), cleanFirestoreData(newCat));
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `categories/${id}`);
+      showMutationError('add', 'category', err);
+      return;
     }
+    showFormAlert('Category added successfully.', 'success');
   };
 
   const updateCategory = async (id: string, updates: Partial<Category>) => {
@@ -959,12 +973,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await updateDoc(doc(db, 'categories', id), cleanFirestoreData(updates));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `categories/${id}`);
+      showMutationError('update', 'category', err);
+      return;
     }
+    showFormAlert('Category updated successfully.', 'success');
   };
 
   const deleteCategory = async (id: string) => {
     if (!(await moveRecordsToTrash([{ table_name: 'categories', record_id: id }]))) return;
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    showFormAlert('Category deleted successfully and moved to exBIN.', 'success');
   };
 
   // Product Management
@@ -982,21 +1000,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'products', id), cleanFirestoreData(newProd));
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `products/${id}`);
+      showMutationError('add', 'product', err);
+      return;
     }
+    showFormAlert('Product added successfully.', 'success');
   };
 
-  const updateProduct = async (id: string, updates: Partial<Product>) => {
+  const updateProduct = async (id: string, updates: Partial<Product>, notify = true) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
     try {
       await updateDoc(doc(db, 'products', id), cleanFirestoreData(updates));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+      showMutationError('update', 'product', err);
+      return;
     }
+    if (notify) showFormAlert('Product updated successfully.', 'success');
   };
 
   const deleteProduct = async (id: string) => {
     if (!(await moveRecordsToTrash([{ table_name: 'products', record_id: id }]))) return;
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    showFormAlert('Product deleted successfully and moved to exBIN.', 'success');
   };
 
   // Supplier Management
@@ -1014,7 +1039,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'suppliers', id), newSupp);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `suppliers/${id}`);
+      showMutationError('add', 'supplier', err);
+      return;
     }
+    showFormAlert('Supplier added successfully.', 'success');
   };
 
   const updateSupplier = async (id: string, updates: Partial<Supplier>) => {
@@ -1023,12 +1051,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await updateDoc(doc(db, 'suppliers', id), updates);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `suppliers/${id}`);
+      showMutationError('update', 'supplier', err);
+      return;
     }
+    showFormAlert('Supplier updated successfully.', 'success');
   };
 
   const deleteSupplier = async (id: string) => {
     if (!(await moveRecordsToTrash([{ table_name: 'suppliers', record_id: id }]))) return;
     setSuppliers((prev) => prev.filter((s) => s.id !== id));
+    showFormAlert('Supplier deleted successfully and moved to exBIN.', 'success');
   };
 
   // Expense Account Management
@@ -1046,7 +1078,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'expense_accounts', id), newAcc);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `expense_accounts/${id}`);
+      showMutationError('add', 'expense account', err);
+      return;
     }
+    showFormAlert('Expense account added successfully.', 'success');
   };
 
   const updateExpenseAccount = async (id: string, updates: Partial<ExpenseAccount>) => {
@@ -1055,12 +1090,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await updateDoc(doc(db, 'expense_accounts', id), updates);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `expense_accounts/${id}`);
+      showMutationError('update', 'expense account', err);
+      return;
     }
+    showFormAlert('Expense account updated successfully.', 'success');
   };
 
   const deleteExpenseAccount = async (id: string) => {
     if (!(await moveRecordsToTrash([{ table_name: 'expense_accounts', record_id: id }]))) return;
     setExpenseAccounts((prev) => prev.filter((a) => a.id !== id));
+    showFormAlert('Expense account deleted successfully and moved to exBIN.', 'success');
   };
 
   // Expense Management
@@ -1095,7 +1134,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'transactions', txId), newTx);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `expenses/${id}`);
+      showMutationError('add', 'expense', err);
+      return;
     }
+    showFormAlert('Expense recorded successfully.', 'success');
   };
 
   const deleteExpense = async (id: string) => {
@@ -1108,6 +1150,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setExpenses((prev) => prev.filter((e) => e.id !== id));
     if (matchingTx) setTransactions((prev) => prev.filter((t) => t.id !== matchingTx.id));
+    showFormAlert('Expense deleted successfully and moved to exBIN.', 'success');
   };
 
   // Transactions
@@ -1124,7 +1167,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'transactions', id), newTx);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `transactions/${id}`);
+      showMutationError('add', 'transaction', err);
+      return;
     }
+    showFormAlert('Transaction added successfully.', 'success');
   };
 
   const deleteTransaction = async (id: string) => {
@@ -1157,6 +1203,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTransactions((prev) => prev.filter((transaction) => transaction.id !== id));
     if (linkedOrder) setOrders((prev) => prev.filter((order) => order.id !== linkedOrder.id));
     if (linkedExpense) setExpenses((prev) => prev.filter((expense) => expense.id !== linkedExpense.id));
+    showFormAlert('Transaction deleted successfully and moved to exBIN.', 'success');
   };
 
   // POS Sale Completion
@@ -1231,7 +1278,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         prev.map((p) => {
           if (p.id === product.id) {
             const newQty = Math.max(0, p.availableQuantity - quantity);
-            updateProduct(p.id, { availableQuantity: newQty });
+            updateProduct(p.id, { availableQuantity: newQty }, false);
             return { ...p, availableQuantity: newQty };
           }
           return p;
@@ -1245,7 +1292,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (b.baleCode === product.baleCode) {
               const itemTotal = product.sellingPrice * quantity;
               const newSales = (b.totalSalesMade || 0) + itemTotal;
-              updateBale(b.id, { totalSalesMade: newSales });
+              updateBale(b.id, { totalSalesMade: newSales }, false);
               return { ...b, totalSalesMade: newSales };
             }
             return b;
@@ -1261,6 +1308,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         quantity,
         notes: `POS transaction #${orderNumber}`,
         adjustStock: false,
+        notify: false,
       });
     });
 
@@ -1286,8 +1334,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'transactions', txId), cleanFirestoreData(newTx));
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `orders/${id}`);
+      showMutationError('complete', 'POS sale', err);
+      throw err;
     }
 
+    showFormAlert(`POS sale ${orderNumber} completed successfully.`, 'success');
     return newOrder;
   };
 
@@ -1299,6 +1350,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     quantity: number;
     notes?: string;
     adjustStock?: boolean;
+    notify?: boolean;
   }) => {
     const id = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newLog: ItemStatusLog = {
@@ -1318,6 +1370,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await setDoc(doc(db, 'item_logs', id), cleanFirestoreData(newLog));
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `item_logs/${id}`);
+      showMutationError('add', 'inventory status log', err);
+      return;
+    }
+    if (params.notify !== false) {
+      showFormAlert(`Inventory status recorded: ${params.type} ${params.quantity} for ${params.productName}.`, 'success');
     }
 
     // If stock adjustment is requested
@@ -1331,7 +1388,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             } else if (params.type === 'damaged' || params.type === 'lost') {
               newQty = Math.max(0, newQty - params.quantity);
             }
-            updateProduct(p.id, { availableQuantity: newQty });
+            updateProduct(p.id, { availableQuantity: newQty }, false);
             return { ...p, availableQuantity: newQty };
           }
           return p;
@@ -1348,6 +1405,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       restoreStock?: boolean;
       productId?: string;
       quantityToRestore?: number;
+      notify?: boolean;
     }
   ) => {
     setItemStatusLogs((prev) =>
@@ -1358,6 +1416,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await updateDoc(doc(db, 'item_logs', id), cleanFirestoreData(updates));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `item_logs/${id}`);
+      showMutationError('update', 'inventory status log', err);
+      return;
+    }
+    if (options?.notify !== false) {
+      showFormAlert('Inventory status log updated successfully.', 'success');
     }
 
     if (
@@ -1370,7 +1433,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         prev.map((p) => {
           if (p.id === options.productId) {
             const restored = (p.availableQuantity || 0) + options.quantityToRestore!;
-            updateProduct(p.id, { availableQuantity: restored });
+            updateProduct(p.id, { availableQuantity: restored }, false);
             return { ...p, availableQuantity: restored };
           }
           return p;
@@ -1379,9 +1442,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const deleteItemStatusLog = async (id: string) => {
+  const deleteItemStatusLog = async (id: string, notify = true) => {
     if (!(await moveRecordsToTrash([{ table_name: 'item_logs', record_id: id }]))) return;
     setItemStatusLogs((prev) => prev.filter((log) => log.id !== id));
+    if (notify) showFormAlert('Inventory status log deleted successfully and moved to exBIN.', 'success');
   };
 
   return (
@@ -1407,6 +1471,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         transactions,
         itemStatusLogs,
         formAlert,
+        formAlertType,
         showFormAlert,
         clearFormAlert,
         addBale,

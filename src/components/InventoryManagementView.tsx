@@ -83,6 +83,7 @@ export const InventoryManagementView: React.FC = () => {
   const [supplierPage, setSupplierPage] = useState(1);
   const [categoryPage, setCategoryPage] = useState(1);
   const [balePage, setBalePage] = useState(1);
+  const [baleStatusFilter, setBaleStatusFilter] = useState<'all' | Bale['status']>('all');
   const [productPage, setProductPage] = useState(1);
 
   // ===================== 1. BALE MANAGEMENT STATE =====================
@@ -367,19 +368,38 @@ export const InventoryManagementView: React.FC = () => {
   };
 
   const filteredProductsList = useMemo(() => {
-    return products.filter((p) => {
-      const q = productSearch.toLowerCase();
-      return (
-        p.name.toLowerCase().includes(q) ||
-        getProductCategory(p.baleCode || '', p.category).toLowerCase().includes(q) ||
-        (p.baleCode && p.baleCode.toLowerCase().includes(q)) ||
-        p.barcode.toLowerCase().includes(q)
-      );
-    });
+    return products
+      .filter((p) => {
+        if (p.availableQuantity <= 0) return false;
+        const q = productSearch.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          getProductCategory(p.baleCode || '', p.category).toLowerCase().includes(q) ||
+          (p.baleCode && p.baleCode.toLowerCase().includes(q)) ||
+          p.barcode.toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [products, productSearch, bales]);
   const visibleSuppliers = suppliers.slice((supplierPage - 1) * PAGE_SIZE, supplierPage * PAGE_SIZE);
   const visibleCategories = categories.slice((categoryPage - 1) * PAGE_SIZE, categoryPage * PAGE_SIZE);
-  const visibleBales = bales.slice((balePage - 1) * PAGE_SIZE, balePage * PAGE_SIZE);
+  const filteredBales = useMemo(
+    () =>
+      bales
+        .filter((bale) => baleStatusFilter === 'all' || bale.status === baleStatusFilter)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [bales, baleStatusFilter],
+  );
+  const baleStatusCounts = useMemo(
+    () => ({
+      all: bales.length,
+      sealed: bales.filter((bale) => bale.status === 'sealed').length,
+      opened: bales.filter((bale) => bale.status === 'opened').length,
+      depleted: bales.filter((bale) => bale.status === 'depleted').length,
+    }),
+    [bales],
+  );
+  const visibleBales = filteredBales.slice((balePage - 1) * PAGE_SIZE, balePage * PAGE_SIZE);
   const visibleProducts = filteredProductsList.slice(
     (productPage - 1) * PAGE_SIZE,
     productPage * PAGE_SIZE,
@@ -388,6 +408,9 @@ export const InventoryManagementView: React.FC = () => {
   useEffect(() => {
     setProductPage(1);
   }, [productSearch]);
+  useEffect(() => {
+    setBalePage(1);
+  }, [baleStatusFilter]);
 
   useEffect(() => {
     if (!editTabToFocus || editTabToFocus !== activeTab) return;
@@ -1075,14 +1098,51 @@ export const InventoryManagementView: React.FC = () => {
 
           {/* Database Table Below */}
           <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
-              <h3 className="text-base font-bold text-white">Bales Inventory & Break-Even Database</h3>
-              <span className="text-xs text-stone-400">{bales.length} total bales</span>
+            <div className="flex flex-col gap-3 border-b border-orange-500/20 pb-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-bold text-white">Bales Inventory & Break-Even Database</h3>
+                <span className="text-xs text-stone-400">
+                  {filteredBales.length} {baleStatusFilter === 'all' ? 'total' : baleStatusFilter} bales · newest first
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filter bales by status">
+                {([
+                  ['all', 'All'],
+                  ['sealed', 'Sealed'],
+                  ['opened', 'Opened'],
+                  ['depleted', 'Depleted'],
+                ] as const).map(([status, label]) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setBaleStatusFilter(status)}
+                    aria-pressed={baleStatusFilter === status}
+                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                      baleStatusFilter === status
+                        ? 'border-orange-400/50 bg-orange-600/25 text-orange-200'
+                        : 'border-stone-700 bg-stone-900/80 text-stone-300 hover:border-orange-500/40 hover:text-white'
+                    }`}
+                  >
+                    <span>{label}</span>
+                    <span
+                      className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full border px-1.5 text-[10px] font-black ${
+                        baleStatusFilter === status
+                          ? 'border-emerald-300/50 bg-emerald-500/30 text-emerald-100'
+                          : 'border-emerald-500/30 bg-emerald-950/60 text-emerald-300'
+                      }`}
+                    >
+                      {baleStatusCounts[status]}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {bales.length === 0 ? (
+            {filteredBales.length === 0 ? (
               <p className="text-center py-8 text-xs text-stone-400">
-                No bales entered yet. Use the form above to add your first bale without any limits!
+                {bales.length === 0
+                  ? 'No bales entered yet. Use the form above to add your first bale.'
+                  : `No ${baleStatusFilter} bales found.`}
               </p>
             ) : (
               <>
@@ -1346,7 +1406,7 @@ export const InventoryManagementView: React.FC = () => {
                   </table>
                 </div>
                 <Pagination
-                  totalItems={bales.length}
+                  totalItems={filteredBales.length}
                   currentPage={balePage}
                   onPageChange={setBalePage}
                 />
@@ -1582,7 +1642,7 @@ export const InventoryManagementView: React.FC = () => {
 
             {filteredProductsList.length === 0 ? (
               <p className="text-center py-8 text-xs text-stone-400">
-                No products found in the database. Use the form above to list unlimited products!
+                No in-stock products found. Products with 0 pcs are hidden from this listing.
               </p>
             ) : (
               <>
@@ -1634,15 +1694,7 @@ export const InventoryManagementView: React.FC = () => {
                           <div>
                             <span className="text-stone-400 block text-[10px]">Available Stock</span>
                             <div className="flex flex-col items-start gap-1">
-                              <span
-                                className={`font-bold font-mono ${
-                                  p.availableQuantity <= 0
-                                    ? 'text-rose-400'
-                                    : p.availableQuantity <= 3
-                                    ? 'text-amber-400'
-                                    : 'text-emerald-400'
-                                }`}
-                              >
+                              <span className="font-bold font-mono text-emerald-400">
                                 {p.availableQuantity} pcs
                               </span>
                               {daysMissing > 0 && (
@@ -1746,15 +1798,7 @@ export const InventoryManagementView: React.FC = () => {
                             </td>
                             <td className="py-3 px-3 text-center font-bold text-white">
                               <div className="flex flex-col items-center gap-1.5">
-                                <span
-                                  className={`px-2.5 py-1 rounded-full text-xs ${
-                                    p.availableQuantity <= 0
-                                      ? 'bg-rose-950/80 text-rose-300'
-                                      : p.availableQuantity <= 3
-                                      ? 'bg-amber-950/80 text-amber-300'
-                                      : 'bg-emerald-950/80 text-emerald-300'
-                                  }`}
-                                >
+                                <span className="rounded-full bg-emerald-950/80 px-2.5 py-1 text-xs text-emerald-300">
                                   {p.availableQuantity} pcs
                                 </span>
                                 {daysMissing > 0 && (

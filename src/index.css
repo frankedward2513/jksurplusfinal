@@ -91,6 +91,141 @@
   outline: none;
 }
 
+/* Light theme surfaces and contrast for components that share dark-mode utility classes. */
+.light .glass-panel {
+  border-color: rgba(120, 53, 15, 0.14);
+  box-shadow: 0 10px 30px rgba(68, 44, 26, 0.08);
+}
+
+.light .glass-panel-hover:hover {
+  border-color: rgba(234, 88, 12, 0.32);
+  box-shadow: 0 14px 34px rgba(120, 53, 15, 0.12);
+}
+
+.light [class*="bg-stone-950"],
+.light [class*="bg-stone-900"] {
+  background-color: rgba(255, 253, 250, 0.94) !important;
+}
+
+.light [class*="bg-stone-800"] {
+  background-color: rgba(245, 240, 234, 0.96) !important;
+}
+
+.light [class*="bg-stone-700"] {
+  background-color: rgba(231, 224, 216, 0.9) !important;
+}
+
+.light [class*="border-stone-800"],
+.light [class*="border-stone-700"] {
+  border-color: rgba(120, 83, 56, 0.18) !important;
+}
+
+.light [class*="text-white"],
+.light [class*="text-stone-100"],
+.light [class*="text-stone-200"] {
+  color: #292524 !important;
+}
+
+.light [class*="text-stone-300"] {
+  color: #44403c !important;
+}
+
+.light [class*="text-stone-400"] {
+  color: #57534e !important;
+}
+
+.light [class*="text-stone-500"],
+.light [class*="text-stone-600"] {
+  color: #78716c !important;
+}
+
+.light [class*="text-stone-700"],
+.light [class*="text-stone-800"],
+.light [class*="text-stone-900"] {
+  color: #292524 !important;
+}
+
+.light [class*="bg-gradient-to-"] [class*="text-white"],
+.light [class*="bg-orange-"] [class*="text-white"],
+.light [class*="bg-amber-"] [class*="text-white"],
+.light [class*="bg-emerald-"] [class*="text-white"],
+.light [class*="bg-red-"] [class*="text-white"],
+.light [class*="bg-rose-"] [class*="text-white"],
+.light [class*="bg-blue-"] [class*="text-white"],
+.light [class*="bg-purple-"] [class*="text-white"] {
+  color: #fff !important;
+}
+
+.light button[class*="bg-gradient-to-r"],
+.light button[class*="bg-orange-"],
+.light button[class*="bg-emerald-"],
+.light button[class*="bg-red-"] {
+  color: #fff !important;
+}
+
+.light button[class*="bg-gradient-to-r"] [class*="text-white"],
+.light button[class*="bg-orange-"] [class*="text-white"],
+.light button[class*="bg-emerald-"] [class*="text-white"],
+.light button[class*="bg-red-"] [class*="text-white"] {
+  color: #fff !important;
+}
+
+.light input:not([type="checkbox"]):not([type="radio"]),
+.light textarea {
+  color: #292524;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #78716c;
+  opacity: 1;
+}
+
+.light select option {
+  background-color: #fffdfa;
+  color: #292524;
+}
+
+.dark [class*="text-stone-100"],
+.dark [class*="text-stone-200"],
+.dark [class*="text-white"] {
+  color: #f5f5f4 !important;
+}
+
+.dark [class*="text-stone-300"] {
+  color: #e7e5e4 !important;
+}
+
+.dark [class*="text-stone-400"] {
+  color: #d6d3d1 !important;
+}
+
+.dark [class*="text-stone-500"],
+.dark [class*="text-stone-600"] {
+  color: #c8c3bd !important;
+}
+
+.dark [class*="text-stone-700"],
+.dark [class*="text-stone-800"],
+.dark [class*="text-stone-900"] {
+  color: #b8b0a8 !important;
+}
+
+.dark .dashboard-custom-date::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+.dark .showcase-custom-date::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+.light svg:not([class*="text-"]),
+.dark svg:not([class*="text-"]) {
+  color: inherit;
+}
+
 /* Smooth Select & Dropdown Styling */
 select {
   appearance: none;

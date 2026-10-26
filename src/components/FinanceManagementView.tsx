@@ -428,7 +428,13 @@ export const FinanceManagementView: React.FC = () => {
   // Lost Products Metrics & Financial Valuation (Active lost items; if found, removed from lost)
   const lostMetrics = useMemo(() => {
     const lostLogs = itemStatusLogs.filter(
-      (log) => log.type === 'lost' && log.status !== 'found' && log.quantity > 0
+      (log) =>
+        log.type === 'lost' &&
+        log.status !== 'found' &&
+        log.quantity > 0 &&
+        products.some(
+          (product) => product.id === log.productId && product.availableQuantity > 0,
+        )
     );
     let totalLostPieces = 0;
     let totalLostValue = 0;

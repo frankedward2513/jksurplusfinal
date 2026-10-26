@@ -62,16 +62,25 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
       (log) => log.type === 'lost' && (log.status === 'found' || log.quantity <= 0)
     );
     if (foundLogs.length > 0) {
-      foundLogs.forEach((l) => deleteItemStatusLog(l.id).catch(console.warn));
+      foundLogs.forEach((l) => deleteItemStatusLog(l.id, false).catch(console.warn));
     }
   }, [itemStatusLogs, deleteItemStatusLog]);
 
   // Active lost logs only (if found, it is removed from lost)
   const lostLogs = useMemo(() => {
-    return itemStatusLogs.filter(
-      (log) => log.type === 'lost' && log.status !== 'found' && log.quantity > 0
+    const availableProductIds = new Set(
+      products
+        .filter((product) => product.availableQuantity > 0)
+        .map((product) => product.id),
     );
-  }, [itemStatusLogs]);
+    return itemStatusLogs.filter(
+      (log) =>
+        log.type === 'lost' &&
+        log.status !== 'found' &&
+        log.quantity > 0 &&
+        availableProductIds.has(log.productId),
+    );
+  }, [itemStatusLogs, products]);
 
   // Compute metrics for active lost items
   const metrics = useMemo(() => {
@@ -144,9 +153,9 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
         // Fully found: Restock to inventory if requested and remove completely from lost!
         if (restoreStock && prod) {
           const restoredQty = (prod.availableQuantity || 0) + foundQty;
-          await updateProduct(prod.id, { availableQuantity: restoredQty });
+          await updateProduct(prod.id, { availableQuantity: restoredQty }, false);
         }
-        await deleteItemStatusLog(selectedLogForUpdate.id);
+        await deleteItemStatusLog(selectedLogForUpdate.id, false);
 
         setSuccessMessage(
           `"${selectedLogForUpdate.productName}" recovered! Restored ${foundQty} pc(s) to inventory and removed from lost list.`
@@ -156,18 +165,24 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
         const remainingLost = selectedLogForUpdate.quantity - foundQty;
         if (restoreStock && prod) {
           const restoredQty = (prod.availableQuantity || 0) + foundQty;
-          await updateProduct(prod.id, { availableQuantity: restoredQty });
+          await updateProduct(prod.id, { availableQuantity: restoredQty }, false);
         }
         await updateItemStatusLog(selectedLogForUpdate.id, {
           quantity: remainingLost,
           notes: `${selectedLogForUpdate.notes ? selectedLogForUpdate.notes + ' | ' : ''}Found ${foundQty} pcs on ${foundDate}${foundNotes ? ': ' + foundNotes : ''}`,
-        });
+        }, { notify: false });
 
         setSuccessMessage(
           `Restored ${foundQty} pc(s) of "${selectedLogForUpdate.productName}" to inventory. Remaining lost updated to ${remainingLost} pc(s).`
         );
       }
 
+      showFormAlert(
+        isFullyFound
+          ? `"${selectedLogForUpdate.productName}" recovered successfully and inventory updated.`
+          : `Inventory updated successfully. ${foundQty} piece(s) of "${selectedLogForUpdate.productName}" recovered.`,
+        'success',
+      );
       setTimeout(() => setSuccessMessage(null), 4000);
       setSelectedLogForUpdate(null);
     } catch (err) {
@@ -191,17 +206,17 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-stone-900/95 border border-amber-500/30 rounded-3xl p-5 sm:p-7 shadow-2xl backdrop-blur-xl text-stone-100 my-auto max-h-[92vh] flex flex-col">
+      <div className="relative w-full max-w-4xl rounded-3xl p-5 sm:p-7 shadow-2xl text-stone-100 my-auto max-h-[92vh] flex flex-col glass-panel">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-stone-800 gap-3">
           <div className="flex items-center gap-3">
-            <span className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <span className="p-2.5 rounded-2xl bg-orange-500/10 text-orange-400 border border-orange-500/20">
               <ShieldAlert className="w-6 h-6" />
             </span>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <span>Lost Products Ledger</span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-mono font-semibold border border-amber-500/30">
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 font-mono font-semibold border border-orange-500/30">
                   {lostLogs.length} Missing
                 </span>
               </h3>
@@ -219,9 +234,9 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
                   onClose();
                   onOpenLogLostModal();
                 }}
-                className="hidden sm:flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold border border-stone-700 transition"
+                className="hidden sm:flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 text-xs font-semibold border border-orange-500/30 transition"
               >
-                <Plus className="w-3.5 h-3.5 text-amber-400" />
+                <Plus className="w-3.5 h-3.5 text-orange-400" />
                 <span>+ Log New Lost</span>
               </button>
             )}
@@ -245,24 +260,24 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
 
         {/* Summary Stat Cards: Total Lost Items & Total Financial Loss */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-4">
-          <div className="p-4 rounded-2xl bg-stone-950/60 border border-stone-800 relative overflow-hidden">
+          <div className="p-4 rounded-2xl bg-orange-500/5 border border-orange-500/20 relative overflow-hidden">
             <span className="text-[11px] font-semibold uppercase text-stone-400">Total Lost Items</span>
-            <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">
+            <div className="text-xl sm:text-2xl font-black text-orange-400 mt-1">
               {metrics.totalRecords} Product{metrics.totalRecords !== 1 ? 's' : ''}
             </div>
             <p className="text-[11px] text-stone-400 mt-0.5">
               {metrics.totalLostPieces} missing piece{metrics.totalLostPieces !== 1 ? 's' : ''} currently unaccounted for
             </p>
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500/80" />
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500/80" />
           </div>
 
-          <div className="p-4 rounded-2xl bg-stone-950/60 border border-stone-800 relative overflow-hidden">
+          <div className="p-4 rounded-2xl bg-orange-500/5 border border-orange-500/20 relative overflow-hidden">
             <span className="text-[11px] font-semibold uppercase text-stone-400">Total Financial Loss</span>
             <div className="text-xl sm:text-2xl font-black text-white font-mono mt-1">
               ₱{metrics.totalLostValue.toLocaleString()}
             </div>
             <p className="text-[11px] text-stone-400 mt-0.5">Estimated missing inventory value</p>
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-rose-500/80" />
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500/80" />
           </div>
         </div>
 
@@ -275,7 +290,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search lost products by name, barcode, notes, or date..."
-              className="w-full pl-10 pr-3 py-2 rounded-xl bg-stone-950/80 border border-stone-800 text-xs text-white placeholder-stone-400 focus:outline-none focus:border-amber-500/50"
+              className="w-full pl-10 pr-3 py-2 rounded-xl bg-orange-500/5 border border-orange-500/20 text-xs text-white placeholder-stone-400 focus:outline-none focus:border-orange-500/50"
             />
             {searchQuery && (
               <button
@@ -292,7 +307,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
         {/* Lost Items List */}
         <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-stone-700 scrollbar-track-stone-950 min-h-[220px]">
           {filteredLogs.length === 0 ? (
-            <div className="text-center py-12 px-4 rounded-2xl bg-stone-950/40 border border-stone-800/80">
+            <div className="text-center py-12 px-4 rounded-2xl bg-orange-500/5 border border-orange-500/20">
               <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
               <p className="text-sm font-semibold text-stone-200">No lost items recorded</p>
               <p className="text-xs text-stone-400 mt-1 max-w-sm mx-auto">
@@ -311,7 +326,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
               return (
                 <div
                   key={log.id}
-                  className="p-4 rounded-2xl border bg-stone-950/70 border-stone-800 hover:border-amber-500/30 transition"
+                  className="p-4 rounded-2xl border bg-orange-500/5 border-orange-500/20 hover:border-orange-500/50 transition"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     {/* Product Details */}
@@ -374,7 +389,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
                         <div className="text-xs text-stone-400 font-sans">
                           {log.quantity} pc{log.quantity > 1 ? 's' : ''} × ₱{price.toLocaleString()}
                         </div>
-                        <div className="text-sm sm:text-base font-bold text-amber-400 font-mono">
+                        <div className="text-sm sm:text-base font-bold text-orange-400 font-mono">
                           ₱{totalVal.toLocaleString()}
                         </div>
                       </div>
@@ -415,7 +430,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="py-1.5 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold transition"
+            className="py-1.5 px-4 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 font-semibold transition"
           >
             Close
           </button>

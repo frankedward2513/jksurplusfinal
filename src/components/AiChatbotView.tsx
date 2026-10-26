@@ -35,9 +35,10 @@ export const AiChatbotView: React.FC = () => {
   // Build a scoped fallback answer from live inventory and expense data.
   const getLiveDatabaseAnswer = (queryText: string): string => {
     const q = queryText.toLowerCase().trim();
-    const totalUnits = products.reduce((sum, p) => sum + (p.availableQuantity || 0), 0);
-    const lowStock = products.filter((p) => (p.availableQuantity || 0) > 0 && (p.availableQuantity || 0) <= 3);
-    const outOfStock = products.filter((p) => (p.availableQuantity || 0) <= 0);
+    const availableProducts = products.filter((p) => (p.availableQuantity || 0) > 0);
+    const availableCategoryCount = new Set(availableProducts.map((p) => p.category).filter(Boolean)).size;
+    const totalUnits = availableProducts.reduce((sum, p) => sum + (p.availableQuantity || 0), 0);
+    const lowStock = availableProducts.filter((p) => p.availableQuantity <= 3);
     const totalExp = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
     // 1. RECOMMENDATIONS & BUSINESS STRATEGY
@@ -52,14 +53,14 @@ export const AiChatbotView: React.FC = () => {
       let advice = `🎯 **Inventory & Expense Recommendations for EXINS Jksur+ Novaliches**:\n\n`;
 
       // Restocking recommendation
-      if (outOfStock.length > 0 || lowStock.length > 0) {
-        const topLow = [...outOfStock, ...lowStock].slice(0, 3).map((p) => p.name).join(', ');
+      if (lowStock.length > 0) {
+        const topLow = lowStock.slice(0, 3).map((p) => p.name).join(', ');
         advice += `📦 **1. Urgent Restocking Action**:\n` +
-          `• Priority Reorder: ${topLow} (Currently ${outOfStock.length} out of stock and ${lowStock.length} low stock).\n` +
+          `• Priority Reorder: ${topLow} (${lowStock.length} available products have 3 or fewer units).\n` +
           `• Recommendation: Order fresh bales for high-turnover apparel to avoid lost sales at the store counter.\n\n`;
       } else {
         advice += `📦 **1. Inventory Health**:\n` +
-          `• Stock levels across all ${products.length} products are healthy (>3 units each).\n\n`;
+          `• Stock levels across all ${availableProducts.length} available products are above 3 units.\n\n`;
       }
 
       advice += `🏷️ **Bale Inventory**:\n` +
@@ -110,21 +111,15 @@ export const AiChatbotView: React.FC = () => {
 
     // 3. LOW STOCK & RESTOCKING
     if (q.includes('low stock') || q.includes('out of stock') || q.includes('restock') || q.includes('reorder')) {
-      if (lowStock.length === 0 && outOfStock.length === 0) {
-        return `✅ **Direct Answer: Zero Urgent Stock Depletions!**\nAll ${products.length} products in your inventory have healthy stock levels (> 3 units each).\n\n💡 **Recommendation**: Review stock levels regularly and prepare reorder lists with suppliers when items approach their minimum stock level.`;
+      if (lowStock.length === 0) {
+        return `✅ **Direct Answer: No available products are below the low-stock threshold.**\nAll ${availableProducts.length} currently available products have more than 3 units.\n\n💡 **Recommendation**: Review stock levels regularly and prepare reorder lists with suppliers when items approach their minimum stock level.`;
       }
 
-      let report = `📦 **Direct Answer: ${outOfStock.length} items out of stock and ${lowStock.length} items low in stock**:\n\n`;
-      if (outOfStock.length > 0) {
-        report += `❌ **Out of Stock (Priority Reorder)**:\n` +
-          outOfStock.slice(0, 5).map((p) => `• **${p.name}** (Barcode: ${p.barcode || 'N/A'}) - 0 available`).join('\n') + `\n\n`;
-      }
-      if (lowStock.length > 0) {
-        report += `⚠️ **Low Stock (<= 3 Units Remaining)**:\n` +
-          lowStock.slice(0, 8).map((p) => `• **${p.name}**: ${p.availableQuantity} pcs left (₱${p.sellingPrice.toLocaleString()})`).join('\n') + `\n\n`;
-      }
+      let report = `📦 **Direct Answer: ${lowStock.length} available products have low stock (3 or fewer units)**:\n\n`;
+      report += `⚠️ **Low Stock**:\n` +
+        lowStock.slice(0, 8).map((p) => `• **${p.name}**: ${p.availableQuantity} pcs left (₱${p.sellingPrice.toLocaleString()})`).join('\n') + `\n\n`;
       report += `💡 **Restocking Recommendation**:\n` +
-        `• Reorder fresh bales from suppliers to replenish out-of-stock items before the weekend rush.\n` +
+        `• Reorder fresh bales from suppliers to maintain available inventory before the weekend rush.\n` +
         `• Set safety stock buffers in "Inventory Management" so staff receive alerts when inventory drops below 5 units.`;
 
       return report;
@@ -166,26 +161,27 @@ export const AiChatbotView: React.FC = () => {
 
     // Default scoped inventory and expense summary.
     return `📊 **Inventory & Expense Summary for EXINS Jksur+ Novaliches**:\n\n` +
-      `📦 **Inventory**: ${products.length} products listed with ${totalUnits.toLocaleString()} units in stock across ${categories.length} categories.\n` +
-      `⚠️ **Stock Status**: ${lowStock.length} items low in stock (<= 3 pcs), ${outOfStock.length} out of stock.\n` +
+      `📦 **Inventory**: ${availableProducts.length} available products listed with ${totalUnits.toLocaleString()} units in stock across ${availableCategoryCount} categories.\n` +
+      `⚠️ **Stock Status**: ${lowStock.length} available items low in stock (<= 3 pcs).\n` +
       `🏷️ **Bales**: ${bales.length} total bales.\n` +
       `💰 **Expenses**: ${expenseAccounts.length} budget accounts with ₱${totalExp.toLocaleString()} in recorded disbursements.\n` +
       `Ask about a specific product, stock level, bale, expense account, or budget for details.`;
   };
 
   // Context data payload strictly containing live database values
+  const availableProducts = products.filter((product) => (product.availableQuantity || 0) > 0);
+  const availableCategoryCount = new Set(availableProducts.map((product) => product.category).filter(Boolean)).size;
   const contextData = {
     storeName: 'EXINS Jksur+ Novaliches Quezon City',
-    productCount: products.length,
+    productCount: availableProducts.length,
     baleCount: bales.length,
-    categoryCount: categories.length,
+    categoryCount: availableCategoryCount,
     totalExpenses: expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
-    totalUnitsInStock: products.reduce((sum, p) => sum + (p.availableQuantity || 0), 0),
-    outOfStockCount: products.filter((p) => (p.availableQuantity || 0) <= 0).length,
-    lowStockProducts: products
+    totalUnitsInStock: availableProducts.reduce((sum, p) => sum + (p.availableQuantity || 0), 0),
+    lowStockProducts: availableProducts
       .filter((p) => (p.availableQuantity || 0) <= 3)
       .map((p) => ({ name: p.name, code: p.barcode, stock: p.availableQuantity, price: p.sellingPrice, category: p.category })),
-    products: products.slice(0, 60).map((p) => ({
+    products: availableProducts.slice(0, 60).map((p) => ({
       name: p.name,
       category: p.category,
       baleCode: p.baleCode || 'None',

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Order } from '../types';
-import { Printer, X, CheckCircle } from 'lucide-react';
+import { X, CheckCircle } from 'lucide-react';
 
 interface ReceiptModalProps {
   order: Order | null;
@@ -9,10 +9,6 @@ interface ReceiptModalProps {
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) => {
   if (!order) return null;
-
-  const handlePrint = () => {
-    window.print();
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
@@ -130,15 +126,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
         {/* Actions */}
         <div className="flex items-center gap-3 pt-4 border-t border-orange-500/20 no-print">
           <button
-            onClick={handlePrint}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-semibold shadow-lg shadow-orange-600/30 transition cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print Receipt</span>
-          </button>
-          <button
             onClick={onClose}
-            className="py-2.5 px-5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 font-medium transition cursor-pointer"
+            className="w-full rounded-xl bg-stone-800 px-5 py-2.5 font-medium text-stone-300 transition hover:bg-stone-700 cursor-pointer"
           >
             Close
           </button>

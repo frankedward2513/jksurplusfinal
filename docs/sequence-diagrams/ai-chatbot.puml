@@ -1,0 +1,44 @@
+@startuml
+title AI Chatbot — scoped inventory and expense assistance
+autonumber
+
+actor Owner
+boundary "AI Chatbot View" as View
+control "Store Context" as Store
+control "Assistant API (/api/gemini)" as API
+participant "Answer Builder\n(local chatbot helper)" as Local
+
+== Prepare live context ==
+activate Store
+Store --> View: Current products, bales,\ncategories, accounts and expenses
+deactivate Store
+Owner -> View: Enter and send question
+activate View
+View -> View: Add user message to chat
+View -> View: Check inventory/expense topic scope
+
+alt Question is outside supported scope
+  View -> View: Select out-of-scope reply
+  View --> Owner: Display refusal message
+else Question is in scope
+  View -> API: POST prompt and live contextData
+  activate API
+  alt Assistant returns a non-fallback answer
+    API --> View: Response text
+    View -> View: Add assistant response to chat
+  else Assistant returns fallback response
+    API --> View: Fallback indicator
+    View -> Local: Build fallback answer from live store data\nand the submitted question
+    activate Local
+    Local --> View: Inventory/expense summary
+    deactivate Local
+    View -> View: Add local answer to chat
+  else API request fails
+    API --> View: Error response
+    View -> View: Log error and prepare unavailable message
+  end
+  deactivate API
+  View --> Owner: Display assistant reply or error message
+end
+deactivate View
+@enduml

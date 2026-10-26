@@ -50,6 +50,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   } = useStore();
 
   const [dateFilter, setDateFilter] = useState<DateFilterPreset>('all');
+  const [slowMovingCategory, setSlowMovingCategory] = useState('all');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [monthlyBreakdownPage, setMonthlyBreakdownPage] = useState(1);
@@ -298,7 +299,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     ];
   }, [salesInflows]);
 
-  const slowMovingProducts = useMemo(() => {
+  const slowMovingProductsByCategory = useMemo(() => {
     const lastSoldByProduct = new Map<string, string>();
     orders
       .filter((order) => order.status !== 'cancelled')
@@ -313,7 +314,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return products
+    const slowMovingProducts = products
+      .filter((product) => product.availableQuantity > 0)
       .map((product) => {
         const lastSoldDate = lastSoldByProduct.get(product.id);
         const referenceDate = lastSoldDate || getLocalDateKey(product.createdAt);
@@ -324,9 +326,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         return { ...product, idleDays };
       })
       .filter((product): product is NonNullable<typeof product> => product !== null)
-      .sort((a, b) => b.idleDays - a.idleDays || a.name.localeCompare(b.name))
-      .slice(0, 10);
+      .sort((a, b) => b.idleDays - a.idleDays || a.name.localeCompare(b.name));
+
+    const categoryMap = new Map<string, typeof slowMovingProducts>();
+    slowMovingProducts.forEach((product) => {
+      const category = product.category?.trim() || 'Uncategorized';
+      const categoryProducts = categoryMap.get(category) || [];
+      if (categoryProducts.length < 10) {
+        categoryProducts.push(product);
+        categoryMap.set(category, categoryProducts);
+      }
+    });
+
+    return Array.from(categoryMap.entries()).sort(([categoryA], [categoryB]) =>
+      categoryA.localeCompare(categoryB),
+    );
   }, [orders, products]);
+
+  const slowMovingCategories = useMemo(
+    () =>
+      Array.from(
+        new Set(products.map((product) => product.category?.trim() || 'Uncategorized')),
+      ).sort((categoryA, categoryB) => categoryA.localeCompare(categoryB)),
+    [products],
+  );
+
+  const visibleSlowMovingProductsByCategory = useMemo(
+    () =>
+      slowMovingCategory === 'all'
+        ? slowMovingProductsByCategory
+        : slowMovingProductsByCategory.filter(([category]) => category === slowMovingCategory),
+    [slowMovingCategory, slowMovingProductsByCategory],
+  );
 
   // Graph points generation for the Line Graph (Sales Inflow vs Expense Outflow)
   const lineGraphData = useMemo(() => {
@@ -446,14 +477,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 type="date"
                 value={customStart}
                 onChange={(e) => setCustomStart(e.target.value)}
-                className="bg-transparent text-stone-200 text-xs focus:outline-none"
+                className="dashboard-custom-date bg-transparent text-stone-200 text-xs focus:outline-none"
               />
               <span className="text-stone-500">to</span>
               <input
                 type="date"
                 value={customEnd}
                 onChange={(e) => setCustomEnd(e.target.value)}
-                className="bg-transparent text-stone-200 text-xs focus:outline-none"
+                className="dashboard-custom-date bg-transparent text-stone-200 text-xs focus:outline-none"
               />
             </div>
           )}
@@ -535,10 +566,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500 opacity-60" />
         </div>
 
-        {/* Remaining Assets */}
+        {/* Unsold Items */}
         <div className="p-3.5 sm:p-5 rounded-2xl glass-panel glass-panel-hover relative overflow-hidden group">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-400 truncate">Remaining Assets</span>
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-stone-400 truncate">Unsold Items</span>
             <div className="p-1.5 sm:p-2 rounded-xl bg-purple-500/20 text-purple-400 group-hover:scale-110 transition">
               <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
@@ -907,37 +938,60 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 <Clock3 className="w-5 h-5 text-orange-400" />
                 Slow-moving products
               </h2>
-              <p className="text-xs text-stone-400 mt-1">Top 10 products with the longest time since their last sale</p>
+              <p className="text-xs text-stone-400 mt-1">Up to 10 products with the longest time since their last sale in each category</p>
             </div>
-            <span className="text-xs px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-300 font-semibold">
-              {slowMovingProducts.length} products
-            </span>
+            <div className="flex items-center gap-2">
+              <label htmlFor="slow-moving-category" className="sr-only">Filter by category</label>
+              <select
+                id="slow-moving-category"
+                value={slowMovingCategory}
+                onChange={(event) => setSlowMovingCategory(event.target.value)}
+                className="rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-xs font-semibold text-stone-200"
+              >
+                <option value="all">All categories</option>
+                {slowMovingCategories.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+              <span className="whitespace-nowrap rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-300">
+                {visibleSlowMovingProductsByCategory.reduce((total, [, items]) => total + items.length, 0)} products
+              </span>
+            </div>
           </div>
-          {slowMovingProducts.length === 0 ? (
+          {visibleSlowMovingProductsByCategory.length === 0 ? (
             <p className="py-8 text-center text-sm text-stone-400">Add products to see slow-moving inventory.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-              {slowMovingProducts.map((product) => (
-                <div key={product.id} className="min-w-0 overflow-hidden rounded-xl border border-stone-700/60 bg-stone-950/25">
-                  <div className="relative h-32 bg-stone-900/60 flex items-center justify-center overflow-hidden">
-                    {product.imageUrl ? (
-                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <Boxes className="w-9 h-9 text-stone-600" />
-                    )}
+            <div className="space-y-5">
+              {visibleSlowMovingProductsByCategory.map(([category, categoryProducts]) => (
+                <div key={category} className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-stone-700/60 pb-2">
+                    <h3 className="text-sm font-bold text-stone-200">{category}</h3>
+                    <span className="text-[11px] text-stone-500">Top {categoryProducts.length} slow-moving</span>
                   </div>
-                  <div className="p-3">
-                    <p className="truncate text-sm font-semibold text-stone-100" title={product.name}>{product.name}</p>
-                    <p className="mt-1 truncate text-[11px] text-stone-400" title={product.baleCode || product.barcode}>
-                      Code: {product.baleCode || product.barcode || '—'}
-                    </p>
-                    <p className="mt-1 truncate text-[11px] text-stone-500">{product.category || 'Uncategorized'}</p>
-                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-stone-700/60 pt-2">
-                      <span className="text-[10px] text-stone-400">Days not sold</span>
-                      <span className="shrink-0 text-xs font-bold text-orange-300">
-                        {product.idleDays} {product.idleDays === 1 ? 'day' : 'days'}
-                      </span>
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                    {categoryProducts.map((product) => (
+                      <div key={product.id} className="min-w-0 overflow-hidden rounded-xl border border-stone-700/60 bg-stone-950/25">
+                        <div className="relative h-32 bg-stone-900/60 flex items-center justify-center overflow-hidden">
+                          {product.imageUrl ? (
+                            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                          ) : (
+                            <Boxes className="w-9 h-9 text-stone-600" />
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <p className="truncate text-sm font-semibold text-stone-100" title={product.name}>{product.name}</p>
+                          <p className="mt-1 truncate text-[11px] text-stone-400" title={product.barcode || product.id}>
+                            Product Code: {product.barcode || product.id}
+                          </p>
+                          <div className="mt-3 flex items-center justify-between gap-2 border-t border-stone-700/60 pt-2">
+                            <span className="text-[10px] text-stone-400">Days not sold</span>
+                            <span className="shrink-0 text-xs font-bold text-orange-300">
+                              {product.idleDays} {product.idleDays === 1 ? 'day' : 'days'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}

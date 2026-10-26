@@ -1,0 +1,98 @@
+@startuml
+title Inventory Management — records and stock lifecycle
+autonumber
+
+actor "Owner / Staff" as User
+boundary "Inventory Management View" as View
+control "Store Context" as Store
+control "Supabase Client" as Supabase
+database "PostgreSQL" as DB
+
+== Load inventory ==
+activate Store
+Store -> Supabase: Select bales, categories, products,\nsuppliers and item logs
+activate Supabase
+Supabase -> DB: Read inventory tables
+activate DB
+DB --> Supabase: Inventory records
+deactivate DB
+Supabase --> Store: Loaded records
+deactivate Supabase
+Store --> View: Provide current inventory state
+deactivate Store
+View --> User: Display inventory tabs and stock
+
+== Maintain inventory ==
+alt Create a bale, category, product, or supplier
+  User -> View: Enter details and save
+  activate View
+  View -> Store: addBale / addCategory /\naddProduct / addSupplier
+  activate Store
+  Store -> Store: Create ID, timestamp and defaults
+  Store --> View: Update local state
+  Store -> Supabase: Upsert inventory record
+  activate Supabase
+  Supabase -> DB: Insert or update row
+  activate DB
+  DB --> Supabase: Persisted record
+  deactivate DB
+  Supabase --> Store: Save result
+  deactivate Supabase
+  deactivate Store
+  deactivate View
+else Edit an inventory record
+  User -> View: Change details and save
+  activate View
+  View -> Store: updateBale / updateCategory /\nupdateProduct / updateSupplier
+  activate Store
+  Store -> Store: Update local state
+  Store -> Supabase: Update record by ID
+  activate Supabase
+  Supabase -> DB: Update row
+  activate DB
+  DB --> Supabase: Updated record
+  deactivate DB
+  Supabase --> Store: Save result
+  deactivate Supabase
+  deactivate Store
+  deactivate View
+else Log an item status
+  User -> View: Record sold, returned,\ndamaged or lost quantity
+  activate View
+  View -> Store: logItemStatus(details)
+  activate Store
+  Store -> Store: Add item log to local state
+  Store -> Supabase: Insert item log
+  activate Supabase
+  Supabase -> DB: Persist item log row
+  activate DB
+  DB --> Supabase: Item log saved
+  deactivate DB
+  Supabase --> Store: Save result
+  deactivate Supabase
+  opt Stock adjustment requested
+    Store -> Store: Adjust product quantity in local state
+    Store -> Supabase: Update product quantity
+    activate Supabase
+    Supabase -> DB: Persist product quantity
+    activate DB
+    DB --> Supabase: Product updated
+    deactivate DB
+    Supabase --> Store: Save result
+    deactivate Supabase
+  end
+  deactivate Store
+  deactivate View
+end
+
+opt Database change notification
+  DB -> Supabase: PostgreSQL change event
+  activate Supabase
+  Supabase -> Store: Reload affected table
+  activate Store
+  Store --> View: Refresh inventory state
+  deactivate Store
+  deactivate Supabase
+  View --> User: Show updated records and stock
+end
+@enduml

@@ -45,7 +45,7 @@ export const PosView: React.FC = () => {
   // Add product to POS Cart
   const addItemToCart = (prod: Product, qty = 1) => {
     if (prod.availableQuantity <= 0) {
-      setCodeMessage({ text: `${prod.name} is out of stock!`, type: 'error' });
+      setCodeMessage({ text: 'This product is currently unavailable.', type: 'error' });
       return;
     }
 
@@ -85,9 +85,10 @@ export const PosView: React.FC = () => {
     const query = codeInput.trim().toLowerCase();
     const matched = products.find(
       (p) =>
-        (p.barcode && p.barcode.toLowerCase() === query) ||
-        p.id.toLowerCase() === query ||
-        p.name.toLowerCase() === query
+        p.availableQuantity > 0 &&
+        ((p.barcode && p.barcode.toLowerCase() === query) ||
+          p.id.toLowerCase() === query ||
+          p.name.toLowerCase() === query)
     );
 
     if (matched) {
@@ -95,7 +96,7 @@ export const PosView: React.FC = () => {
       setCodeInput('');
     } else {
       setCodeMessage({
-        text: `No product found matching code "${codeInput}". Please check code or search below.`,
+        text: `No available product found matching "${codeInput}". Please check the code or search below.`,
         type: 'error',
       });
     }
@@ -178,7 +179,7 @@ export const PosView: React.FC = () => {
       setDiscountAmount('');
       setAmountTendered('');
       setShowDiscountInput(false);
-      setCodeMessage({ text: 'Sale successfully completed and saved!', type: 'success' });
+      setCodeMessage(null);
       setCompletedOrder(order);
     } catch (err) {
       console.error(err);
@@ -194,9 +195,10 @@ export const PosView: React.FC = () => {
     return products
       .filter(
         (p) =>
-          (p.barcode && p.barcode.toLowerCase().includes(q)) ||
-          p.name.toLowerCase().includes(q) ||
-          p.id.toLowerCase().includes(q)
+          p.availableQuantity > 0 &&
+          ((p.barcode && p.barcode.toLowerCase().includes(q)) ||
+            p.name.toLowerCase().includes(q) ||
+            p.id.toLowerCase().includes(q))
       )
       .slice(0, 5);
   }, [products, codeInput]);
@@ -269,7 +271,6 @@ export const PosView: React.FC = () => {
               </span>
               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                 {matchingProducts.map((p) => {
-                  const isOutOfStock = p.availableQuantity <= 0;
                   return (
                     <div
                       key={p.id}
@@ -282,23 +283,18 @@ export const PosView: React.FC = () => {
                           <span>•</span>
                           <span>SKU: {p.barcode}</span>
                           <span>•</span>
-                          <span className={isOutOfStock ? 'text-rose-400' : 'text-emerald-400'}>
+                          <span className="text-emerald-400">
                             Stock: {p.availableQuantity}
                           </span>
                         </div>
                       </div>
                       <button
                         type="button"
-                        disabled={isOutOfStock}
                         onClick={() => {
                           addItemToCart(p, 1);
                           setCodeInput('');
                         }}
-                        className={`py-1.5 px-3 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                          isOutOfStock
-                            ? 'bg-stone-800 text-stone-500 cursor-not-allowed'
-                            : 'bg-orange-500 hover:bg-orange-400 text-stone-950 shadow-sm'
-                        }`}
+                        className="shrink-0 cursor-pointer rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-stone-950 shadow-sm transition hover:bg-orange-400"
                       >
                         + Add
                       </button>

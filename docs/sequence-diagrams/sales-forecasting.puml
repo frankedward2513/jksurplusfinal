@@ -1,0 +1,53 @@
+@startuml
+title Sales Forecasting — historical sales and EWMA forecast
+autonumber
+
+actor Owner
+boundary "Forecasting View" as View
+control "Store Context" as Store
+control "Forecast Calculator" as Calculator
+participant "Sales Orders" as Orders
+participant "Inflow Transactions" as Transactions
+participant "Product Catalog" as Products
+
+== Obtain current data ==
+activate Store
+Store --> View: Live orders, transactions,\ncategories and products
+deactivate Store
+Owner -> View: Open forecasting or change period,\nhorizon or category
+activate View
+View -> Calculator: Recalculate selected forecast
+activate Calculator
+Calculator -> Orders: Read non-cancelled orders\nfor historical intervals
+activate Orders
+Orders --> Calculator: Order dates, totals and items
+deactivate Orders
+Calculator -> Products: Resolve product categories\nfor category-specific sales
+activate Products
+Products --> Calculator: Product category data
+deactivate Products
+opt No order sales for an interval and all categories selected
+  Calculator -> Transactions: Read inflow transactions\nfor that interval
+  activate Transactions
+  Transactions --> Calculator: Transaction inflows
+  deactivate Transactions
+end
+Calculator -> Calculator: Aggregate daily, weekly or monthly history
+Calculator -> Calculator: Smooth history using EWMA (alpha = 0.3)
+Calculator -> Calculator: Project smoothed value across horizon
+Calculator --> View: Historical and forecast points
+deactivate Calculator
+View --> Owner: Render sales forecast chart
+deactivate View
+
+opt New order or transaction arrives
+  Store --> View: Updated live sales data
+  activate View
+  View -> Calculator: Recalculate forecast
+  activate Calculator
+  Calculator --> View: Updated history and forecast
+  deactivate Calculator
+  View --> Owner: Refresh chart
+  deactivate View
+end
+@enduml

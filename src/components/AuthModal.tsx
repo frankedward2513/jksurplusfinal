@@ -33,7 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
     try {
       await loginAs(email.trim(), password);
-      showFormAlert('You have been successfully signed in!');
+      showFormAlert('You have been successfully signed in!', 'success');
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sign-in failed. Please check your credentials.');
