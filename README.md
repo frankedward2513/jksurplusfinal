@@ -12,6 +12,8 @@ The browser app connects directly to Supabase. In **Vercel → Project → Setti
 - `VITE_SUPABASE_URL` — the project's Supabase URL (`https://<project-ref>.supabase.co`)
 - `VITE_SUPABASE_PUBLISHABLE_KEY` — the project's publishable key (a legacy anon key is also supported)
 
+For the AI chatbot, also set `GEMINI_API_KEY` as a server-side environment variable in Vercel. Do not use a `VITE_` or `NEXT_PUBLIC_` prefix for this secret. The `/api/gemini` serverless function reads this value; without it, the chatbot provides a live-data summary instead of a Gemini-generated answer. Redeploy after changing environment variables.
+
 The existing `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` names are also supported. These are public browser credentials; **never** put a Supabase `service_role` or secret key in a `VITE_` or `NEXT_PUBLIC_` variable.
 
 Select every Vercel deployment environment that needs the database (Production, Preview, and/or Development), save the variables, and **redeploy**. Vite embeds these values when it builds the site, so changing a variable does not update an already-built deployment.
