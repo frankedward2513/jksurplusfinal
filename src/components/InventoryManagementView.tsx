@@ -509,7 +509,7 @@ export const InventoryManagementView: React.FC = () => {
         >
           <Truck className="w-4 h-4 text-orange-400 shrink-0" />
           <span className="truncate">Bale Suppliers</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
+          <span className="inventory-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
             {suppliers.length}
           </span>
         </button>
@@ -525,7 +525,7 @@ export const InventoryManagementView: React.FC = () => {
         >
           <Layers className="w-4 h-4 text-orange-400 shrink-0" />
           <span className="truncate">Product Categories</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
+          <span className="inventory-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
             {categories.length}
           </span>
         </button>
@@ -541,7 +541,7 @@ export const InventoryManagementView: React.FC = () => {
         >
           <Boxes className="w-4 h-4 text-orange-400 shrink-0" />
           <span className="truncate">Bale Management</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
+          <span className="inventory-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
             {bales.length}
           </span>
         </button>
@@ -557,7 +557,7 @@ export const InventoryManagementView: React.FC = () => {
         >
           <ShoppingBag className="w-4 h-4 text-orange-400 shrink-0" />
           <span className="truncate">Product List</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
+          <span className="inventory-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
             {products.length}
           </span>
         </button>
@@ -700,7 +700,7 @@ export const InventoryManagementView: React.FC = () => {
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             onClick={() => startEditSupplier(s)}
-                            className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
+                            className="record-edit-action p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
                             title="Edit Supplier"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -722,7 +722,7 @@ export const InventoryManagementView: React.FC = () => {
                                 ],
                               });
                             }}
-                            className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                            className="record-delete-action p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
                             title="Delete Supplier"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -871,7 +871,7 @@ export const InventoryManagementView: React.FC = () => {
                         {/* Edit Button */}
                         <button
                           onClick={() => startEditCategory(cat)}
-                          className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
+                          className="record-edit-action p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
                           title="Edit Category"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -892,7 +892,7 @@ export const InventoryManagementView: React.FC = () => {
                               ],
                             });
                           }}
-                          className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                          className="record-delete-action p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
                           title="Delete Category"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1238,7 +1238,7 @@ export const InventoryManagementView: React.FC = () => {
                         <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
                           <button
                             onClick={() => startEditBale(b)}
-                            className="px-3 py-1.5 rounded-lg bg-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition hover:bg-stone-700"
+                            className="record-edit-action px-3 py-1.5 rounded-lg bg-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition hover:bg-stone-700"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                             <span>Edit</span>
@@ -1260,7 +1260,7 @@ export const InventoryManagementView: React.FC = () => {
                                 ],
                               });
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-red-950/60 text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer transition hover:bg-red-900"
+                            className="record-delete-action px-3 py-1.5 rounded-lg bg-red-950/60 text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer transition hover:bg-red-900"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>Delete</span>
@@ -1370,7 +1370,7 @@ export const InventoryManagementView: React.FC = () => {
                               <div className="flex items-center justify-center gap-1.5">
                                 <button
                                   onClick={() => startEditBale(b)}
-                                  className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition cursor-pointer"
+                                  className="record-edit-action p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition cursor-pointer"
                                   title="Edit Bale"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -1392,7 +1392,7 @@ export const InventoryManagementView: React.FC = () => {
                                       ],
                                     });
                                   }}
-                                  className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/30 transition cursor-pointer"
+                                  className="record-delete-action p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/30 transition cursor-pointer"
                                   title="Delete Bale"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1713,7 +1713,7 @@ export const InventoryManagementView: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => startEditProduct(p)}
-                              className="px-3 py-1.5 rounded-lg bg-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition hover:bg-stone-700"
+                              className="record-edit-action px-3 py-1.5 rounded-lg bg-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition hover:bg-stone-700"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>Edit</span>
@@ -1735,7 +1735,7 @@ export const InventoryManagementView: React.FC = () => {
                                   ],
                                 });
                               }}
-                              className="px-3 py-1.5 rounded-lg bg-red-950/60 text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer transition hover:bg-red-900"
+                              className="record-delete-action px-3 py-1.5 rounded-lg bg-red-950/60 text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer transition hover:bg-red-900"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               <span>Delete</span>
@@ -1815,7 +1815,7 @@ export const InventoryManagementView: React.FC = () => {
                               <div className="flex items-center justify-center gap-1.5">
                                 <button
                                   onClick={() => startEditProduct(p)}
-                                  className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition cursor-pointer"
+                                  className="record-edit-action p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition cursor-pointer"
                                   title="Edit Product"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -1837,7 +1837,7 @@ export const InventoryManagementView: React.FC = () => {
                                       ],
                                     });
                                   }}
-                                  className="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/30 transition cursor-pointer"
+                                  className="record-delete-action p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/30 transition cursor-pointer"
                                   title="Delete Product"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />

@@ -107,6 +107,56 @@
   background-color: rgba(255, 253, 250, 0.94) !important;
 }
 
+.light .inventory-count-badge {
+  background-color: #0c0a09 !important;
+  color: #fff !important;
+}
+
+.light .finance-count-badge {
+  background-color: #0c0a09 !important;
+  color: #fff !important;
+}
+
+.light .lost-item-modal-panel {
+  background: rgba(255, 253, 250, 0.98);
+  color: #292524;
+}
+
+.light .lost-item-modal-close {
+  background-color: #fff7ed;
+  border-color: rgba(234, 88, 12, 0.25);
+  color: #57534e;
+}
+
+.light .lost-item-modal-close:hover {
+  background-color: #ffedd5;
+  color: #9a3412;
+}
+
+.light .lost-item-product-option {
+  background-color: #fffdfa !important;
+  border-color: rgba(180, 83, 9, 0.2);
+}
+
+.light .lost-item-product-option:hover {
+  background-color: #fff7ed !important;
+  border-color: rgba(234, 88, 12, 0.45);
+}
+
+.light .lost-item-selected-product {
+  background: linear-gradient(105deg, #fff7ed, #fffbeb);
+}
+
+.light .lost-item-modal .lost-item-selected-product [class*="text-white"] {
+  color: #292524 !important;
+}
+
+.light .lost-item-status-pill {
+  background-color: #ecfdf5 !important;
+  border-color: rgba(5, 150, 105, 0.3);
+  color: #047857 !important;
+}
+
 .light [class*="bg-stone-800"] {
   background-color: rgba(245, 240, 234, 0.96) !important;
 }
@@ -184,6 +234,28 @@
 .light select option {
   background-color: #fffdfa;
   color: #292524;
+}
+
+.light button.record-edit-action[class] {
+  background-color: #fff7ed !important;
+  border: 1px solid rgba(234, 88, 12, 0.25);
+  color: #c2410c !important;
+}
+
+.light button.record-edit-action[class]:hover {
+  background-color: #ffedd5 !important;
+  color: #9a3412 !important;
+}
+
+.light button.record-delete-action[class] {
+  background-color: #fff1f2 !important;
+  border: 1px solid #fecdd3;
+  color: #be123c !important;
+}
+
+.light button.record-delete-action[class]:hover {
+  background-color: #ffe4e6 !important;
+  color: #9f1239 !important;
 }
 
 .dark [class*="text-stone-100"],

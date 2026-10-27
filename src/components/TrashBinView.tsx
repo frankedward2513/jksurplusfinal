@@ -22,7 +22,7 @@ function getCountdown(expiresAt: string, now: number): string {
 }
 
 export const TrashBinView: React.FC = () => {
-  const { fetchTrashItems, restoreTrashItems } = useStore();
+  const { fetchTrashItems, restoreTrashItems, isDarkMode } = useStore();
   const [items, setItems] = useState<TrashItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [now, setNow] = useState(Date.now());
@@ -96,7 +96,11 @@ export const TrashBinView: React.FC = () => {
           type="button"
           onClick={() => void refresh()}
           disabled={isLoading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/20 hover:text-white disabled:opacity-50"
+          className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            isDarkMode
+              ? 'border border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 hover:text-white'
+              : 'border border-orange-400/40 bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-lg shadow-orange-600/30 hover:from-orange-500 hover:to-amber-600'
+          }`}
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
@@ -173,7 +177,11 @@ export const TrashBinView: React.FC = () => {
                     type="button"
                     onClick={() => void restoreSelected([item.id])}
                     disabled={isRestoring}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-orange-500/30 px-3 py-2 text-xs font-bold text-orange-300 transition hover:bg-orange-500/10 disabled:opacity-50"
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isDarkMode
+                        ? 'border border-orange-500/30 text-orange-300 hover:bg-orange-500/10'
+                        : 'border border-orange-400/40 bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-md shadow-orange-600/20 hover:from-orange-500 hover:to-amber-600'
+                    }`}
                     aria-label={`Restore ${getRecordName(item)}`}
                   >
                     <ArchiveRestore className="h-4 w-4" />

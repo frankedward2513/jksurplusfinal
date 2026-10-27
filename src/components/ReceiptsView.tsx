@@ -6,7 +6,7 @@ import { PAGE_SIZE, Pagination } from './Pagination';
 import { ReceiptModal } from './ReceiptModal';
 
 export const ReceiptsView: React.FC = () => {
-  const { currentUser, orders } = useStore();
+  const { currentUser, orders, isDarkMode } = useStore();
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -94,7 +94,11 @@ export const ReceiptsView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedOrder(order)}
-                          className="rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-1.5 font-sans font-semibold text-orange-300 transition hover:bg-orange-500/20 hover:text-white"
+                          className={`rounded-lg px-3 py-1.5 font-sans font-semibold transition ${
+                            isDarkMode
+                              ? 'border border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 hover:text-white'
+                              : 'border border-orange-400/40 bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-md shadow-orange-600/20 hover:from-orange-500 hover:to-amber-600'
+                          }`}
                         >
                           View receipt
                         </button>

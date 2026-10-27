@@ -116,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Desktop Navigation Items: Icons only with sleek hover tooltip */}
-          <div className="hidden lg:flex items-center gap-2 xl:gap-2.5">
+          <div className="hidden lg:flex items-center gap-1 xl:gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -147,43 +147,33 @@ export const Navbar: React.FC<NavbarProps> = ({
               );
             })}
             {otherNavItems.length > 0 && (
-              <div className="relative flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOthersOpen((open) => !open)}
-                  aria-expanded={othersOpen}
-                  aria-label="Others"
-                  className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-bold transition ${
-                    othersOpen || otherNavItems.some((item) => item.id === activeTab)
-                      ? 'border-orange-400/40 bg-orange-600/20 text-orange-200'
-                      : 'border-orange-500/20 bg-stone-900/80 text-stone-300 hover:border-orange-500/50 hover:text-white'
-                  }`}
-                >
-                  Others
-                  <ChevronDown className={`h-4 w-4 transition-transform ${othersOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {othersOpen &&
-                  otherNavItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id;
-                    return (
+              <>
+                <span aria-hidden="true" className="mx-1 text-stone-500">|</span>
+                {otherNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <div key={item.id} className="relative group flex items-center justify-center">
                       <button
-                        key={item.id}
                         type="button"
                         onClick={() => selectTab(item.id)}
                         aria-label={item.label}
-                        title={item.label}
                         className={`rounded-2xl border p-2.5 transition ${
                           isActive
-                            ? 'border-orange-400/40 bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-lg'
+                            ? 'border-orange-400/40 bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-lg shadow-orange-600/30'
                             : 'border-transparent text-stone-300 hover:border-orange-500/20 hover:bg-stone-800/80 hover:text-white'
                         }`}
                       >
                         <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-orange-400'}`} />
                       </button>
-                    );
-                  })}
-              </div>
+                      <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2.5 -translate-x-1/2 scale-95 whitespace-nowrap rounded-xl border border-orange-500/30 bg-stone-900/95 px-3 py-1.5 text-xs font-semibold text-stone-100 opacity-0 shadow-2xl backdrop-blur-xl transition-all duration-150 group-hover:scale-100 group-hover:opacity-100">
+                        <span>{item.label}</span>
+                        <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-l border-t border-orange-500/30 bg-stone-900" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
 

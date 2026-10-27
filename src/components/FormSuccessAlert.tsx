@@ -16,7 +16,7 @@ export const FormSuccessAlert: React.FC = () => {
         : 'border-orange-500/40 bg-stone-900/95 text-orange-300';
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-[100] flex justify-center px-4">
+    <div className="pointer-events-none fixed bottom-4 left-4 right-4 z-[100] flex justify-start sm:right-auto">
       <div
         role={formAlertType === 'error' ? 'alert' : 'status'}
         aria-live={formAlertType === 'error' ? 'assertive' : 'polite'}

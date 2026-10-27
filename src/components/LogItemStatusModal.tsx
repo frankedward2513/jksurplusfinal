@@ -106,8 +106,8 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-2xl rounded-3xl p-5 sm:p-7 shadow-2xl text-stone-100 my-auto max-h-[92vh] flex flex-col glass-panel">
+    <div className="lost-item-modal fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+      <div className="lost-item-modal-panel relative w-full max-w-2xl rounded-3xl p-5 sm:p-7 shadow-2xl text-stone-100 my-auto max-h-[92vh] flex flex-col glass-panel">
         {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-orange-500/20 shrink-0">
           <div>
@@ -123,8 +123,10 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-stone-400 hover:text-white hover:bg-orange-500/10 transition cursor-pointer"
+            aria-label="Close Log Lost Item"
+            className="lost-item-modal-close p-2 rounded-xl border border-transparent text-stone-400 hover:text-white hover:bg-orange-500/10 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
           >
             <X className="w-5 h-5" />
           </button>
@@ -151,7 +153,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
 
             {selectedProduct ? (
               // Selected product card summary
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-950/60 to-amber-950/40 border border-orange-500/50 flex items-center justify-between gap-3">
+              <div className="lost-item-selected-product p-3.5 rounded-2xl bg-gradient-to-r from-orange-950/60 to-amber-950/40 border border-orange-500/50 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   {selectedProduct.imageUrl ? (
                     <img
@@ -178,7 +180,7 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                     </div>
                   </div>
                 </div>
-                <div className="shrink-0 flex items-center gap-1.5 text-emerald-400 text-xs font-bold bg-emerald-950/80 px-2.5 py-1.5 rounded-xl border border-emerald-500/40">
+                <div className="lost-item-status-pill shrink-0 flex items-center gap-1.5 text-emerald-400 text-xs font-bold bg-emerald-950/80 px-2.5 py-1.5 rounded-xl border border-emerald-500/40">
                   <CheckCircle className="w-4 h-4" />
                   <span>Selected</span>
                 </div>
@@ -272,41 +274,51 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
                     </p>
                   ) : (
                     filteredProducts.map((p) => (
-                      <div
+                      <button
+                        type="button"
                         key={p.id}
                         onClick={() => setSelectedProductId(p.id)}
-                        className="p-2.5 rounded-xl bg-stone-900/80 hover:bg-stone-800/80 border border-stone-800/80 hover:border-orange-500/50 flex items-center justify-between gap-3 cursor-pointer transition"
+                        aria-pressed={selectedProductId === p.id}
+                        aria-label={`Select ${p.name}, ${p.availableQuantity} pieces available`}
+                        className="lost-item-product-option w-full p-3 rounded-2xl bg-stone-950/70 hover:bg-stone-900 border border-orange-500/20 hover:border-orange-500/50 flex items-center gap-3 text-left cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
                           {p.imageUrl ? (
                             <img
                               src={p.imageUrl}
                               alt={p.name}
-                              className="w-9 h-9 rounded-lg object-cover border border-stone-800 shrink-0"
+                              className="w-12 h-12 rounded-xl object-cover bg-stone-900 border border-stone-800 shrink-0"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-lg bg-stone-800 flex items-center justify-center text-[9px] text-stone-400 shrink-0">
-                              Item
+                            <div className="w-12 h-12 rounded-xl bg-stone-800 flex items-center justify-center text-[10px] text-stone-400 shrink-0">
+                              No Pic
                             </div>
                           )}
-                          <div className="truncate">
-                            <p className="font-semibold text-white text-xs truncate">{p.name}</p>
-                            <div className="flex items-center gap-2 text-[10px] text-stone-400">
-                              <span className="font-mono text-orange-400 font-bold">
-                                {p.barcode}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-white text-xs sm:text-sm truncate">{p.name}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px]">
+                              <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-semibold">
+                                {p.size || 'Free Size'}
                               </span>
-                              <span>{p.category}</span>
-                              <span>₱{p.sellingPrice.toLocaleString()}</span>
+                              <span className="px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
+                                {p.category || 'Uncategorized'}
+                              </span>
                             </div>
+                            <p className="text-[10px] text-stone-400 font-mono mt-1 truncate">
+                              {p.baleCode ? `Bale: ${p.baleCode} | ` : ''}Code: {p.barcode}
+                            </p>
                           </div>
                         </div>
 
                         <div className="shrink-0 text-right">
-                          <span className="rounded-full bg-emerald-950/80 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                          <p className="font-bold text-orange-400 text-xs sm:text-sm font-mono">
+                            ₱{p.sellingPrice.toLocaleString()}
+                          </p>
+                          <span className="lost-item-status-pill mt-1 inline-block rounded-full bg-emerald-950/80 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
                             {p.availableQuantity} available
                           </span>
                         </div>
-                      </div>
+                      </button>
                     ))
                   )}
                 </div>

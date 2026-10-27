@@ -491,12 +491,12 @@ export const FinanceManagementView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-16">
+    <div className="finance-management-view space-y-6 animate-fade-in pb-16">
       {/* 3 Finance Navigation Buttons */}
-      <div className="sticky top-16 sm:top-20 z-30 p-3 rounded-2xl glass-panel flex flex-wrap items-center gap-2">
+      <div className="sticky top-16 sm:top-20 z-30 p-2 sm:p-2.5 rounded-2xl glass-panel grid grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
         <button
           onClick={() => setActiveTab('accounts')}
-          className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition cursor-pointer lg:flex-1 ${
             activeTab === 'accounts'
               ? 'bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-md'
               : 'text-stone-300 hover:bg-stone-800'
@@ -504,14 +504,14 @@ export const FinanceManagementView: React.FC = () => {
         >
           <DollarSign className="w-4 h-4 text-orange-400" />
           <span>Expense Accounts</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono">
+          <span className="finance-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
             {expenseAccounts.length}
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('record')}
-          className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition cursor-pointer lg:flex-1 ${
             activeTab === 'record'
               ? 'bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-md'
               : 'text-stone-300 hover:bg-stone-800'
@@ -519,14 +519,14 @@ export const FinanceManagementView: React.FC = () => {
         >
           <Receipt className="w-4 h-4 text-orange-400" />
           <span>Record Expense</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono">
+          <span className="finance-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
             {expenses.length}
           </span>
         </button>
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`flex-1 min-w-[160px] py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+          className={`py-2.5 sm:py-3 px-2.5 sm:px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 sm:gap-2 transition cursor-pointer lg:flex-1 ${
             activeTab === 'history'
               ? 'bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-md'
               : 'text-stone-300 hover:bg-stone-800'
@@ -534,7 +534,7 @@ export const FinanceManagementView: React.FC = () => {
         >
           <History className="w-4 h-4 text-orange-400" />
           <span>Transaction History</span>
-          <span className="px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono">
+          <span className="finance-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
             {transactions.length}
           </span>
         </button>
@@ -669,7 +669,7 @@ export const FinanceManagementView: React.FC = () => {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => startEditAccount(acc)}
-                              className="p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800"
+                              className="record-edit-action p-1 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
@@ -688,7 +688,7 @@ export const FinanceManagementView: React.FC = () => {
                                   ],
                                 });
                               }}
-                              className="p-1 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition"
+                              className="record-delete-action p-1 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition"
                               title="Delete Expense Account"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1376,7 +1376,7 @@ export const FinanceManagementView: React.FC = () => {
                                   ],
                                 });
                               }}
-                              className="p-1 rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                              className="record-delete-action p-1 rounded-lg text-stone-500 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
                               title="Delete Transaction"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1454,7 +1454,7 @@ export const FinanceManagementView: React.FC = () => {
                                     ],
                                   });
                                 }}
-                                className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                                className="record-delete-action p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
                                 title="Delete Transaction"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
