@@ -90,8 +90,8 @@ export async function handleGeminiRequest(payload: unknown): Promise<GeminiApiRe
   } catch (error: unknown) {
     console.error('Gemini API Error:', error);
     return {
-      status: 502,
-      body: { error: 'The inventory and expense assistant is temporarily unavailable.' },
+      status: 200,
+      body: { text: fallbackAnswer(data.contextData), fallback: true },
     };
   }
 }

@@ -278,7 +278,7 @@ export const AiChatbotView: React.FC = () => {
       const errorMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: 'I could not reach the inventory and expense assistant. Please try again shortly.',
+        text: getLiveDatabaseAnswer(textToSend.trim()),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMsg]);
