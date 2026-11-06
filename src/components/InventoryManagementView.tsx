@@ -264,8 +264,10 @@ export const InventoryManagementView: React.FC = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    const matchedBale = bales.find((b) => b.baleCode === productBaleCode);
     if (
       !productName.trim() ||
+      !matchedBale ||
       !Number.isInteger(Number(productQty)) ||
       Number(productQty) <= 0 ||
       !Number.isFinite(Number(productSellingPrice)) ||
@@ -273,13 +275,12 @@ export const InventoryManagementView: React.FC = () => {
       (productCostPrice !== '' &&
         (!Number.isFinite(Number(productCostPrice)) || Number(productCostPrice) < 0))
     ) {
-      showFormAlert('Enter a product name, a whole-number quantity greater than zero, and valid non-negative prices.');
+      showFormAlert('Select a valid bale category/code, enter a product name, a whole-number quantity greater than zero, and valid non-negative prices.');
       return;
     }
 
-    const matchedBale = bales.find((b) => b.baleCode === productBaleCode);
-    const baleName = matchedBale ? matchedBale.baleName : 'Direct Stock';
-    const categoryForSave = matchedBale?.category || getProductCategory(productBaleCode, productCategory);
+    const baleName = matchedBale.baleName;
+    const categoryForSave = matchedBale.category;
 
     if (editingProductId) {
       await updateProduct(editingProductId, {
@@ -578,7 +579,7 @@ export const InventoryManagementView: React.FC = () => {
                   onClick={() => setEditingSupplierId(null)}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               )}
             </div>
@@ -654,7 +655,7 @@ export const InventoryManagementView: React.FC = () => {
 
               {/* Description */}
               <div className="text-xs">
-                <label className="block font-medium text-stone-300 mb-1">Description</label>
+                <label className="block font-medium text-stone-300 mb-1">Supplier Description</label>
                 <textarea
                   rows={2}
                   placeholder="Notes on supplier payment terms, reliability, delivery speed..."
@@ -777,7 +778,7 @@ export const InventoryManagementView: React.FC = () => {
                   onClick={() => setEditingCategoryId(null)}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               )}
             </div>
@@ -799,7 +800,7 @@ export const InventoryManagementView: React.FC = () => {
                 </div>
                 {/* Description */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Description</label>
+                  <label className="block font-medium text-stone-300 mb-1">Product Category Description</label>
                   <input
                     type="text"
                     placeholder="e.g. Heavyweight genuine leather, winter jackets"
@@ -839,78 +840,84 @@ export const InventoryManagementView: React.FC = () => {
               <h3 className="text-base font-bold text-white">Registered Categories</h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-              {visibleCategories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className="p-5 rounded-2xl glass-panel glass-panel-hover flex flex-col justify-between border border-orange-500/20 space-y-4 group"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        {/* Category Color */}
-                        <span
-                          className="w-7 h-7 rounded-full shadow-md shrink-0 border border-white/20 flex items-center justify-center text-white text-[10px] font-bold"
-                          style={{ backgroundColor: cat.color || '#ea580c' }}
-                        >
-                        </span>
-                        <div>
-                          {/* Category Name */}
-                          <h4 className="text-base font-bold text-white group-hover:text-orange-300 transition">
-                            {cat.name}
-                          </h4>
-                          {/* Category Description */}
-                          <p className="text-xs text-stone-400 line-clamp-2">
-                            {cat.description || 'Thrift category'}
-                          </p>
+            {categories.length === 0 ? (
+              <div className="p-8 text-center rounded-3xl glass-panel text-xs text-stone-400">
+                No product categories registered yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                {visibleCategories.map((cat) => (
+                  <div
+                    key={cat.id}
+                    className="p-5 rounded-2xl glass-panel glass-panel-hover flex flex-col justify-between border border-orange-500/20 space-y-4 group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          {/* Category Color */}
+                          <span
+                            className="w-7 h-7 rounded-full shadow-md shrink-0 border border-white/20 flex items-center justify-center text-white text-[10px] font-bold"
+                            style={{ backgroundColor: cat.color || '#ea580c' }}
+                          >
+                          </span>
+                          <div>
+                            {/* Category Name */}
+                            <h4 className="text-base font-bold text-white group-hover:text-orange-300 transition">
+                              {cat.name}
+                            </h4>
+                            {/* Category Description */}
+                            <p className="text-xs text-stone-400 line-clamp-2">
+                              {cat.description || 'Thrift category'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Edit Button */}
+                          <button
+                            onClick={() => startEditCategory(cat)}
+                            className="record-edit-action p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
+                            title="Edit Category"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          {/* Delete Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteTarget({
+                                type: 'category',
+                                id: cat.id,
+                                title: 'Delete Product Category?',
+                                message: 'Are you sure you want to delete this category? If you clicked this by accident, click Cancel to keep it.',
+                                itemName: cat.name,
+                                details: [
+                                  { label: 'Current In-Stock Items', value: `${cat.totalInStock || 0} items` },
+                                  { label: 'Description', value: cat.description || 'N/A' },
+                                ],
+                              });
+                            }}
+                            className="record-delete-action p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                            title="Delete Category"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => startEditCategory(cat)}
-                          className="record-edit-action p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 transition cursor-pointer"
-                          title="Edit Category"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        {/* Delete Button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDeleteTarget({
-                              type: 'category',
-                              id: cat.id,
-                              title: 'Delete Product Category?',
-                              message: 'Are you sure you want to delete this category? If you clicked this by accident, click Cancel to keep it.',
-                              itemName: cat.name,
-                              details: [
-                                { label: 'Current In-Stock Items', value: `${cat.totalInStock || 0} items` },
-                                { label: 'Description', value: cat.description || 'N/A' },
-                              ],
-                            });
-                          }}
-                          className="record-delete-action p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
-                          title="Delete Category"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                    {/* Total In Stock */}
+                    <div className="p-3 rounded-xl bg-stone-950/70 border border-orange-500/30 flex items-center justify-between text-xs">
+                      <span className="text-stone-400">Total In Stock:</span>
+                      <span className="font-bold text-emerald-400 font-mono">
+                        {cat.totalInStock || 0} items
+                      </span>
                     </div>
                   </div>
-                  
-                  {/* Total In Stock */}
-                  <div className="p-3 rounded-xl bg-stone-950/70 border border-orange-500/30 flex items-center justify-between text-xs">
-                    <span className="text-stone-400">Total In Stock:</span>
-                    <span className="font-bold text-emerald-400 font-mono">
-                      {cat.totalInStock || 0} items
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Pagination */}
             <Pagination
@@ -937,7 +944,7 @@ export const InventoryManagementView: React.FC = () => {
                   onClick={() => setEditingBaleId(null)}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               )}
             </div>
@@ -974,13 +981,13 @@ export const InventoryManagementView: React.FC = () => {
                 {/* Product Category - Direct Selection from Product Categories */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-medium text-stone-300">Product Category *</label>
+                    <label className="font-medium text-stone-300">Select Product Category *</label>
                     <button
                       type="button"
                       onClick={() => setActiveTab('categories')}
                       className="text-[10px] text-orange-400 hover:text-orange-300 underline cursor-pointer"
                     >
-                      Manage ({categories.length})
+                      Categories ({categories.length})
                     </button>
                   </div>
 
@@ -996,9 +1003,6 @@ export const InventoryManagementView: React.FC = () => {
                         {c.name}
                       </option>
                     ))}
-                    {baleCategory && !categories.some((c) => c.name.toLowerCase() === baleCategory.toLowerCase()) && (
-                      <option value={baleCategory}>{baleCategory}</option>
-                    )}
                   </select>
                 </div>
 
@@ -1066,7 +1070,7 @@ export const InventoryManagementView: React.FC = () => {
                 {/* Calculated Price per Piece */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">
-                    Auto-Calculated Price / Piece
+                    Price per Piece (₱) - Auto-Calculated
                   </label>
                   <div className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/30 text-amber-400 font-mono font-bold text-sm sm:text-xs flex items-center justify-between">
                     <span>₱{calculatedPricePerPiece.toFixed(2)}</span>
@@ -1101,9 +1105,6 @@ export const InventoryManagementView: React.FC = () => {
             <div className="flex flex-col gap-3 border-b border-orange-500/20 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-base font-bold text-white">Bales Inventory & Break-Even Database</h3>
-                <span className="text-xs text-stone-400">
-                  {filteredBales.length} {baleStatusFilter === 'all' ? 'total' : baleStatusFilter} bales · newest first
-                </span>
               </div>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Filter bales by status">
                 {([
@@ -1454,7 +1455,7 @@ export const InventoryManagementView: React.FC = () => {
                 {/* Bale Category / Bale Code Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-medium text-stone-300">Select Bale Category / Code</label>
+                    <label className="font-medium text-stone-300">Select Bale Category / Code *</label>
                     <button
                       type="button"
                       onClick={() => setActiveTab('bales')}
@@ -1466,9 +1467,10 @@ export const InventoryManagementView: React.FC = () => {
                   <select
                     value={productBaleCode}
                     onChange={(e) => handleSelectProductBale(e.target.value)}
+                    required
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200 cursor-pointer hover:border-orange-500/50"
                   >
-                    <option value="">Direct Inventory / No Bale</option>
+                    <option value="">-- Select Bale Category / Code --</option>
                     {bales.map((b) => (
                       <option key={b.id} value={b.baleCode}>
                         {b.baleCode} - {b.baleName} (Cost: ₱{b.pricePerPiece ? b.pricePerPiece.toFixed(2) : 0})
@@ -1479,7 +1481,7 @@ export const InventoryManagementView: React.FC = () => {
 
                 {/* Category is inherited from the selected bale. */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Category from selected bale</label>
+                  <label className="block font-medium text-stone-300 mb-1">Product Category (Auto-filled)</label>
                   <div className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-300 text-sm sm:text-xs">
                     {getProductCategory(productBaleCode, productCategory)}
                   </div>
@@ -1488,19 +1490,11 @@ export const InventoryManagementView: React.FC = () => {
                 {/* Cost Price */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">
-                    Cost Price (Auto-filled from Bale)
+                    Cost Price (Auto-filled)
                   </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Cost per piece"
-                    value={productCostPrice}
-                    onChange={(e) =>
-                      setProductCostPrice(e.target.value === '' ? '' : Number(e.target.value))
-                    }
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs font-mono focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
-                  />
+                  <div className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-300 text-sm sm:text-xs">
+                    ₱{Number(productCostPrice || 0).toFixed(2)}
+                  </div>
                 </div>
 
                 {/* Selling Price */}
@@ -1587,8 +1581,9 @@ export const InventoryManagementView: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Product Description */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Description</label>
+                  <label className="block font-medium text-stone-300 mb-1">Product Description</label>
                   <textarea
                     rows={2}
                     placeholder="Description, measurements, fabric details..."
