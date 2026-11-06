@@ -80,10 +80,13 @@ export const InventoryManagementView: React.FC = () => {
   const categoryFormRef = React.useRef<HTMLDivElement>(null);
   const baleFormRef = React.useRef<HTMLDivElement>(null);
   const productFormRef = React.useRef<HTMLDivElement>(null);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
   const [supplierPage, setSupplierPage] = useState(1);
   const [categoryPage, setCategoryPage] = useState(1);
   const [balePage, setBalePage] = useState(1);
-  const [baleStatusFilter, setBaleStatusFilter] = useState<'all' | Bale['status']>('all');
+  const [baleSearchInput, setBaleSearchInput] = useState('');
+  const [baleSearch, setBaleSearch] = useState('');
   const [productPage, setProductPage] = useState(1);
 
   // ===================== 1. BALE MANAGEMENT STATE =====================
@@ -233,6 +236,7 @@ export const InventoryManagementView: React.FC = () => {
   const [productDesc, setProductDesc] = useState('');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
+  const [productBaleLookup, setProductBaleLookup] = useState('');
 
   // Handle Bale selection to automatically fill cost price
   const handleSelectProductBale = (selectedCode: string) => {
@@ -382,23 +386,94 @@ export const InventoryManagementView: React.FC = () => {
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [products, productSearch, bales]);
-  const visibleSuppliers = suppliers.slice((supplierPage - 1) * PAGE_SIZE, supplierPage * PAGE_SIZE);
-  const visibleCategories = categories.slice((categoryPage - 1) * PAGE_SIZE, categoryPage * PAGE_SIZE);
-  const filteredBales = useMemo(
-    () =>
-      bales
-        .filter((bale) => baleStatusFilter === 'all' || bale.status === baleStatusFilter)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [bales, baleStatusFilter],
+  const productsForBaleLookup = useMemo(() => {
+    const query = productBaleLookup.trim().toLocaleLowerCase();
+    if (!query) return [];
+
+    return products.filter((product) =>
+      [product.name, product.barcode].some((value) =>
+        value.toLocaleLowerCase().includes(query),
+      ),
+    );
+  }, [products, productBaleLookup]);
+  const filteredSuppliers = useMemo(() => {
+    const query = supplierSearch.trim().toLocaleLowerCase();
+    if (!query) return suppliers;
+
+    return suppliers.filter((supplier) =>
+      [
+        supplier.name,
+        supplier.contactPerson,
+        supplier.email,
+        supplier.phone,
+        supplier.address,
+        supplier.description,
+        supplier.totalBalesSourced,
+      ].some((value) => String(value ?? '').toLocaleLowerCase().includes(query)),
+    );
+  }, [suppliers, supplierSearch]);
+  const filteredCategories = useMemo(() => {
+    const query = categorySearch.trim().toLocaleLowerCase();
+    if (!query) return categories;
+
+    return categories.filter((category) =>
+      [category.name, category.description, category.totalInStock].some((value) =>
+        String(value ?? '').toLocaleLowerCase().includes(query),
+      ),
+    );
+  }, [categories, categorySearch]);
+  const visibleSuppliers = filteredSuppliers.slice(
+    (supplierPage - 1) * PAGE_SIZE,
+    supplierPage * PAGE_SIZE,
   );
-  const baleStatusCounts = useMemo(
-    () => ({
-      all: bales.length,
-      sealed: bales.filter((bale) => bale.status === 'sealed').length,
-      opened: bales.filter((bale) => bale.status === 'opened').length,
-      depleted: bales.filter((bale) => bale.status === 'depleted').length,
-    }),
-    [bales],
+  const visibleCategories = filteredCategories.slice(
+    (categoryPage - 1) * PAGE_SIZE,
+    categoryPage * PAGE_SIZE,
+  );
+  const filteredBales = useMemo(
+    () => {
+      const query = baleSearch.toLocaleLowerCase();
+
+      return bales
+        .filter((bale) => {
+          if (!query) return true;
+
+          const totalCost = bale.totalPurchasePrice || 1;
+          const sales = bale.totalSalesMade || 0;
+          const difference = Math.abs(sales - totalCost);
+          const breakEvenStatus =
+            sales > totalCost
+              ? `${difference.toLocaleString()} profit`
+              : sales === totalCost
+                ? 'breakeven break-even'
+                : `need ${difference.toLocaleString()} break-even`;
+          const searchableValues = [
+            bale.baleCode,
+            bale.baleName,
+            bale.category,
+            bale.supplierName,
+            bale.quantityPurchase,
+            `${bale.quantityPurchase} pcs`,
+            bale.totalPurchasePrice,
+            bale.totalPurchasePrice.toLocaleString(),
+            `₱${bale.totalPurchasePrice.toLocaleString()}`,
+            bale.pricePerPiece,
+            bale.pricePerPiece.toFixed(2),
+            `₱${bale.pricePerPiece.toFixed(2)}`,
+            sales,
+            sales.toLocaleString(),
+            `₱${sales.toLocaleString()}`,
+            breakEvenStatus,
+            bale.status,
+          ];
+
+          return searchableValues.some((value) =>
+            String(value).toLocaleLowerCase().includes(query),
+          );
+        })
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    },
+    [bales, baleSearch],
   );
   const visibleBales = filteredBales.slice((balePage - 1) * PAGE_SIZE, balePage * PAGE_SIZE);
   const visibleProducts = filteredProductsList.slice(
@@ -410,9 +485,11 @@ export const InventoryManagementView: React.FC = () => {
     setProductPage(1);
   }, [productSearch]);
   useEffect(() => {
-    setBalePage(1);
-  }, [baleStatusFilter]);
-
+    setSupplierPage(1);
+  }, [supplierSearch]);
+  useEffect(() => {
+    setCategoryPage(1);
+  }, [categorySearch]);
   useEffect(() => {
     if (!editTabToFocus || editTabToFocus !== activeTab) return;
 
@@ -677,10 +754,25 @@ export const InventoryManagementView: React.FC = () => {
 
           {/* Card Display */}
           <div className="space-y-3">
-            <h3 className="text-base font-bold text-white">Registered Bale Suppliers</h3>
-            {suppliers.length === 0 ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-base font-bold text-white">Registered Bale Suppliers</h3>
+              <div className="relative w-full sm:max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                <input
+                  type="search"
+                  value={supplierSearch}
+                  onChange={(event) => setSupplierSearch(event.target.value)}
+                  placeholder="Search supplier name, contact, phone..."
+                  aria-label="Search registered suppliers"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm sm:text-xs text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
+                />
+              </div>
+            </div>
+            {filteredSuppliers.length === 0 ? (
               <div className="p-8 text-center rounded-3xl glass-panel text-xs text-stone-400">
-                No bale suppliers registered yet. Register your suppliers above to track sourcing volumes!
+                {suppliers.length === 0
+                  ? 'No bale suppliers registered yet. Register your suppliers above to track sourcing volumes!'
+                  : `No suppliers found matching "${supplierSearch.trim()}".`}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
@@ -755,7 +847,7 @@ export const InventoryManagementView: React.FC = () => {
 
             {/* Pagination */}
             <Pagination
-              totalItems={suppliers.length}
+              totalItems={filteredSuppliers.length}
               currentPage={supplierPage}
               onPageChange={setSupplierPage}
             />
@@ -836,13 +928,26 @@ export const InventoryManagementView: React.FC = () => {
 
           {/* Card Display */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-base font-bold text-white">Registered Categories</h3>
+              <div className="relative w-full sm:max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                <input
+                  type="search"
+                  value={categorySearch}
+                  onChange={(event) => setCategorySearch(event.target.value)}
+                  placeholder="Search category name or description..."
+                  aria-label="Search registered product categories"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm sm:text-xs text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
+                />
+              </div>
             </div>
 
-            {categories.length === 0 ? (
+            {filteredCategories.length === 0 ? (
               <div className="p-8 text-center rounded-3xl glass-panel text-xs text-stone-400">
-                No product categories registered yet.
+                {categories.length === 0
+                  ? 'No product categories registered yet.'
+                  : `No categories found matching "${categorySearch.trim()}".`}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
@@ -921,7 +1026,7 @@ export const InventoryManagementView: React.FC = () => {
 
             {/* Pagination */}
             <Pagination
-              totalItems={categories.length}
+              totalItems={filteredCategories.length}
               currentPage={categoryPage}
               onPageChange={setCategoryPage}
             />
@@ -1106,44 +1211,50 @@ export const InventoryManagementView: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-white">Bales Inventory & Break-Even Database</h3>
               </div>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Filter bales by status">
-                {([
-                  ['all', 'All'],
-                  ['sealed', 'Sealed'],
-                  ['opened', 'Opened'],
-                  ['depleted', 'Depleted'],
-                ] as const).map(([status, label]) => (
+              <form
+                role="search"
+                aria-label="Search bales"
+                className="flex w-full gap-2 sm:w-auto"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setBaleSearch(baleSearchInput.trim());
+                  setBalePage(1);
+                }}
+              >
+                <input
+                  type="search"
+                  value={baleSearchInput}
+                  onChange={(event) => {
+                    const query = event.target.value;
+                    setBaleSearchInput(query);
+                    setBaleSearch(query.trim());
+                    setBalePage(1);
+                  }}
+                  placeholder="Search code, name, category, supplier, price, status..."
+                  aria-label="Search bales by code, name, category, supplier, pieces, prices, sales, break-even, or status"
+                  className="min-w-0 flex-1 rounded-xl border border-stone-700 bg-stone-900/80 px-3 py-2 text-xs text-stone-100 placeholder:text-stone-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25 sm:w-80 sm:flex-none"
+                />
+                {baleSearch && (
                   <button
-                    key={status}
                     type="button"
-                    onClick={() => setBaleStatusFilter(status)}
-                    aria-pressed={baleStatusFilter === status}
-                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${
-                      baleStatusFilter === status
-                        ? 'border-orange-400/50 bg-orange-600/25 text-orange-200'
-                        : 'border-stone-700 bg-stone-900/80 text-stone-300 hover:border-orange-500/40 hover:text-white'
-                    }`}
+                    onClick={() => {
+                      setBaleSearchInput('');
+                      setBaleSearch('');
+                      setBalePage(1);
+                    }}
+                    className="shrink-0 rounded-xl border border-stone-700 bg-stone-900/80 px-3 py-2 text-xs font-bold text-stone-300 transition hover:border-orange-500/40 hover:text-white"
                   >
-                    <span>{label}</span>
-                    <span
-                      className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full border px-1.5 text-[10px] font-black ${
-                        baleStatusFilter === status
-                          ? 'border-emerald-300/50 bg-emerald-500/30 text-emerald-100'
-                          : 'border-emerald-500/30 bg-emerald-950/60 text-emerald-300'
-                      }`}
-                    >
-                      {baleStatusCounts[status]}
-                    </span>
+                    Clear
                   </button>
-                ))}
-              </div>
+                )}
+              </form>
             </div>
 
             {filteredBales.length === 0 ? (
               <p className="text-center py-8 text-xs text-stone-400">
                 {bales.length === 0
                   ? 'No bales entered yet. Use the form above to add your first bale.'
-                  : `No ${baleStatusFilter} bales found.`}
+                  : `No bales found matching "${baleSearch}".`}
               </p>
             ) : (
               <>
@@ -1601,6 +1712,59 @@ export const InventoryManagementView: React.FC = () => {
                 {editingProductId ? 'Update Product' : 'List Product'}
               </button>
             </form>
+          </div>
+
+          <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-white">Find Bale by Product Name</h3>
+              <p className="text-xs text-stone-400">
+                Search by product name or item code to see its associated bale name and code.
+              </p>
+            </div>
+
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+              <input
+                type="search"
+                value={productBaleLookup}
+                onChange={(event) => setProductBaleLookup(event.target.value)}
+                placeholder="Type a product name or item code..."
+                aria-label="Find bale by product name or item code"
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
+              />
+            </div>
+
+            {productBaleLookup.trim() && (
+              productsForBaleLookup.length === 0 ? (
+                <p className="text-center py-4 text-xs text-stone-400">
+                  No products found matching "{productBaleLookup.trim()}".
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {productsForBaleLookup.map((product) => {
+                    const matchedBale = bales.find((bale) => bale.baleCode === product.baleCode);
+
+                    return (
+                      <div
+                        key={product.id}
+                        className="rounded-xl border border-orange-500/20 bg-stone-950/60 p-4 space-y-2"
+                      >
+                        <p className="font-semibold text-white">{product.name}</p>
+                        <p className="text-xs text-stone-400">
+                          Item Code: <span className="font-mono text-stone-200">{product.barcode || 'N/A'}</span>
+                        </p>
+                        <p className="text-xs text-stone-400">
+                          Bale Name: <span className="text-stone-200">{matchedBale?.baleName || product.baleName || 'N/A'}</span>
+                        </p>
+                        <p className="text-xs text-stone-400">
+                          Bale Code: <span className="font-mono text-orange-300">{product.baleCode || 'N/A'}</span>
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            )}
           </div>
 
           {/* Database Table Below with Search Button */}
