@@ -109,26 +109,41 @@ export const InventoryManagementView: React.FC = () => {
 
   const handleSaveBale = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      !baleName.trim() ||
-      !baleCategory.trim() ||
-      !baleSupplierId ||
-      !Number.isFinite(Number(balePrice)) ||
-      Number(balePrice) <= 0 ||
-      !Number.isInteger(Number(baleQuantity)) ||
-      Number(baleQuantity) <= 0
-    ) {
-      showFormAlert('Enter a bale name, select a product category and supplier, and provide a purchase price and whole-number quantity greater than zero.');
+    if (!baleName.trim()) {
+      showFormAlert('Please enter a bale name.');
       return;
     }
-
+    if (!baleCategory.trim()) {
+      showFormAlert('Please select a product category.');
+      return;
+    }
+    if (!baleSupplierId) {
+      showFormAlert('Please select a supplier.');
+      return;
+    }
+    if (!Number.isFinite(Number(balePrice))) {
+      showFormAlert('Please enter a valid bale purchase price.');
+      return;
+    }
+    if (Number(balePrice) <= 0) {
+      showFormAlert('The bale purchase price must be greater than zero.');
+      return;
+    }
+    if (!Number.isInteger(Number(baleQuantity))) {
+      showFormAlert('Please enter a whole-number bale quantity.');
+      return;
+    }
+    if (Number(baleQuantity) <= 0) {
+      showFormAlert('The bale quantity must be greater than zero.');
+      return;
+    }
     const suppObj = suppliers.find((s) => s.id === baleSupplierId);
     if (!suppObj) {
       showFormAlert('Select a valid supplier before saving this bale.');
       return;
     }
     const supplierName = suppObj.name;
-
+    // If editing, update the existing bale; otherwise, add a new bale
     if (editingBaleId) {
       await updateBale(editingBaleId, {
         baleCode,
@@ -239,18 +254,23 @@ export const InventoryManagementView: React.FC = () => {
   // Handle Bale selection to automatically fill cost price
   const handleSelectProductBale = (selectedCode: string) => {
     setProductBaleCode(selectedCode);
-    const targetBale = bales.find((b) => b.baleCode === selectedCode);
-    const existingProductCategory = selectedCode === '' && editingProductId
-      ? products.find((product) => product.id === editingProductId)?.category || ''
-      : '';
-    setProductCategory(targetBale?.category || existingProductCategory);
-    if (targetBale && targetBale.pricePerPiece) {
-      setProductCostPrice(Math.round(targetBale.pricePerPiece));
+    const selectedBale = bales.find((bale) => bale.baleCode === selectedCode);
+    const productBeingEdited =
+      selectedCode === '' && editingProductId
+        ? products.find((product) => product.id === editingProductId)
+        : undefined;
+
+    setProductCategory(selectedBale?.category || productBeingEdited?.category || '');
+
+    if (selectedBale?.pricePerPiece) {
+      setProductCostPrice(Math.round(selectedBale.pricePerPiece));
     }
   };
 
-  const getProductCategory = (baleCode: string, fallbackCategory = '') =>
-    bales.find((bale) => bale.baleCode === baleCode)?.category || fallbackCategory || 'Apparel';
+  const getProductCategory = (baleCode: string, fallbackCategory = '') => {
+    const bale = bales.find((item) => item.baleCode === baleCode);
+    return bale?.category || fallbackCategory || 'Apparel';
+  };
 
   // Handle image upload
   const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -266,18 +286,40 @@ export const InventoryManagementView: React.FC = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!productName.trim()) {
+      showFormAlert('Please enter a product name.');
+      return;
+    }
+    if (!productBaleCode) {
+      showFormAlert('Please select a bale category/code.');
+      return;
+    }
     const matchedBale = bales.find((b) => b.baleCode === productBaleCode);
+    if (!matchedBale) {
+      showFormAlert('Please select a valid bale category/code.');
+      return;
+    }
+    if (!Number.isInteger(Number(productQty))) {
+      showFormAlert('Please enter a whole-number product quantity.');
+      return;
+    }
+    if (Number(productQty) <= 0) {
+      showFormAlert('The product quantity must be greater than zero.');
+      return;
+    }
+    if (!Number.isFinite(Number(productSellingPrice))) {
+      showFormAlert('Please enter a valid selling price.');
+      return;
+    }
+    if (Number(productSellingPrice) <= 0) {
+      showFormAlert('The selling price must be greater than zero.');
+      return;
+    }
     if (
-      !productName.trim() ||
-      !matchedBale ||
-      !Number.isInteger(Number(productQty)) ||
-      Number(productQty) <= 0 ||
-      !Number.isFinite(Number(productSellingPrice)) ||
-      Number(productSellingPrice) <= 0 ||
-      (productCostPrice !== '' &&
-        (!Number.isFinite(Number(productCostPrice)) || Number(productCostPrice) < 0))
+      productCostPrice !== '' &&
+      (!Number.isFinite(Number(productCostPrice)) || Number(productCostPrice) < 0)
     ) {
-      showFormAlert('Select a valid bale category/code, enter a product name, a whole-number quantity greater than zero, and valid non-negative prices.');
+      showFormAlert('Please enter a valid non-negative cost price.');
       return;
     }
 
