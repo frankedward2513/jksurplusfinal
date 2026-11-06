@@ -85,7 +85,6 @@ export const InventoryManagementView: React.FC = () => {
   const [supplierPage, setSupplierPage] = useState(1);
   const [categoryPage, setCategoryPage] = useState(1);
   const [balePage, setBalePage] = useState(1);
-  const [baleSearchInput, setBaleSearchInput] = useState('');
   const [baleSearch, setBaleSearch] = useState('');
   const [productPage, setProductPage] = useState(1);
 
@@ -490,6 +489,9 @@ export const InventoryManagementView: React.FC = () => {
   useEffect(() => {
     setCategoryPage(1);
   }, [categorySearch]);
+  useEffect(() => {
+    setBalePage(1);
+  }, [baleSearch]);
   useEffect(() => {
     if (!editTabToFocus || editTabToFocus !== activeTab) return;
 
@@ -1211,43 +1213,17 @@ export const InventoryManagementView: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-white">Bales Inventory & Break-Even Database</h3>
               </div>
-              <form
-                role="search"
-                aria-label="Search bales"
-                className="flex w-full gap-2 sm:w-auto"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setBaleSearch(baleSearchInput.trim());
-                  setBalePage(1);
-                }}
-              >
+              <div className="relative w-full sm:max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                 <input
                   type="search"
-                  value={baleSearchInput}
-                  onChange={(event) => {
-                    const query = event.target.value;
-                    setBaleSearchInput(query);
-                    setBaleSearch(query.trim());
-                    setBalePage(1);
-                  }}
-                  placeholder="Search code, name, category, supplier, price, status..."
-                  aria-label="Search bales by code, name, category, supplier, pieces, prices, sales, break-even, or status"
-                  className="min-w-0 flex-1 rounded-xl border border-stone-700 bg-stone-900/80 px-3 py-2 text-xs text-stone-100 placeholder:text-stone-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25 sm:w-80 sm:flex-none"
+                  value={baleSearch}
+                  onChange={(event) => setBaleSearch(event.target.value)}
+                  placeholder="Search bale code, name, category, supplier..."
+                  aria-label="Search bales by code, name, category, supplier, prices, sales, break-even, or status"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm sm:text-xs text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
                 />
-                {baleSearch && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBaleSearchInput('');
-                      setBaleSearch('');
-                      setBalePage(1);
-                    }}
-                    className="shrink-0 rounded-xl border border-stone-700 bg-stone-900/80 px-3 py-2 text-xs font-bold text-stone-300 transition hover:border-orange-500/40 hover:text-white"
-                  >
-                    Clear
-                  </button>
-                )}
-              </form>
+              </div>
             </div>
 
             {filteredBales.length === 0 ? (
@@ -1257,7 +1233,7 @@ export const InventoryManagementView: React.FC = () => {
                   : `No bales found matching "${baleSearch}".`}
               </p>
             ) : (
-              <>
+              <div>
                 {/* Mobile Cards for Bales (Visible on phones & small screens) */}
                 <div className="block md:hidden space-y-3">
                   {visibleBales.map((b) => {
@@ -1272,6 +1248,7 @@ export const InventoryManagementView: React.FC = () => {
                         key={b.id}
                         className="p-4 rounded-2xl bg-stone-950/70 border border-orange-500/20 space-y-3"
                       >
+                        {/* Bale Information */}
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <span className="font-bold text-orange-400 font-mono text-sm block">
@@ -1353,7 +1330,6 @@ export const InventoryManagementView: React.FC = () => {
                             className="record-edit-action px-3 py-1.5 rounded-lg bg-stone-800 text-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition hover:bg-stone-700"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
-                            <span>Edit</span>
                           </button>
                           <button
                             type="button"
@@ -1375,7 +1351,6 @@ export const InventoryManagementView: React.FC = () => {
                             className="record-delete-action px-3 py-1.5 rounded-lg bg-red-950/60 text-red-300 text-xs font-semibold flex items-center gap-1 border border-red-500/30 cursor-pointer transition hover:bg-red-900"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>Delete</span>
                           </button>
                         </div>
                       </div>
@@ -1434,7 +1409,6 @@ export const InventoryManagementView: React.FC = () => {
                             <td className="py-3.5 px-4 font-sans">
                               <div className="space-y-1">
                                 <div className="flex justify-between text-[11px]">
-                                  <span className="font-bold text-stone-300">{progressPct}%</span>
                                   {isBreakEven ? (
                                     <span className="text-emerald-400 font-bold font-mono">
                                       +{diff > 0 ? `₱${diff.toLocaleString()} Profit` : 'Breakeven!'}
@@ -1522,7 +1496,7 @@ export const InventoryManagementView: React.FC = () => {
                   currentPage={balePage}
                   onPageChange={setBalePage}
                 />
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -1789,10 +1763,10 @@ export const InventoryManagementView: React.FC = () => {
                 <div className="relative w-full sm:w-72">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
                   <input
-                    type="text"
+                    type="search"
                     placeholder="Search product name, code, bale..."
                     value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
+                    onChange={(event) => setProductSearch(event.target.value)}
                     className="w-full pl-9 pr-4 py-2.5 sm:py-2 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm sm:text-xs text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
                   />
                 </div>
