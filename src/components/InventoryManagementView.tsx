@@ -235,7 +235,6 @@ export const InventoryManagementView: React.FC = () => {
   const [productDesc, setProductDesc] = useState('');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
-  const [productBaleLookup, setProductBaleLookup] = useState('');
 
   // Handle Bale selection to automatically fill cost price
   const handleSelectProductBale = (selectedCode: string) => {
@@ -385,16 +384,6 @@ export const InventoryManagementView: React.FC = () => {
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [products, productSearch, bales]);
-  const productsForBaleLookup = useMemo(() => {
-    const query = productBaleLookup.trim().toLocaleLowerCase();
-    if (!query) return [];
-
-    return products.filter((product) =>
-      [product.name, product.barcode].some((value) =>
-        value.toLocaleLowerCase().includes(query),
-      ),
-    );
-  }, [products, productBaleLookup]);
   const filteredSuppliers = useMemo(() => {
     const query = supplierSearch.trim().toLocaleLowerCase();
     if (!query) return suppliers;
@@ -574,9 +563,9 @@ export const InventoryManagementView: React.FC = () => {
     setEditTabToFocus('suppliers');
   };
 
+  // ===================== NAV BAR =====================
   return (
     <div className="space-y-6 animate-fade-in pb-16">
-      {/* 4 Inventory Navigation Buttons - Arranged in requested order: Bale Suppliers, Product Categories, Bale Management, Product List */}
       <div className="sticky top-16 sm:top-20 z-30 p-2 sm:p-2.5 rounded-2xl glass-panel grid grid-cols-2 lg:flex lg:flex-wrap items-center gap-2">
         {/* Button 1: Bale Suppliers */}
         <button
@@ -1688,59 +1677,6 @@ export const InventoryManagementView: React.FC = () => {
             </form>
           </div>
 
-          <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
-            <div>
-              <h3 className="text-base font-bold text-white">Find Bale by Product Name</h3>
-              <p className="text-xs text-stone-400">
-                Search by product name or item code to see its associated bale name and code.
-              </p>
-            </div>
-
-            <div className="relative w-full sm:max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-              <input
-                type="search"
-                value={productBaleLookup}
-                onChange={(event) => setProductBaleLookup(event.target.value)}
-                placeholder="Type a product name or item code..."
-                aria-label="Find bale by product name or item code"
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
-              />
-            </div>
-
-            {productBaleLookup.trim() && (
-              productsForBaleLookup.length === 0 ? (
-                <p className="text-center py-4 text-xs text-stone-400">
-                  No products found matching "{productBaleLookup.trim()}".
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {productsForBaleLookup.map((product) => {
-                    const matchedBale = bales.find((bale) => bale.baleCode === product.baleCode);
-
-                    return (
-                      <div
-                        key={product.id}
-                        className="rounded-xl border border-orange-500/20 bg-stone-950/60 p-4 space-y-2"
-                      >
-                        <p className="font-semibold text-white">{product.name}</p>
-                        <p className="text-xs text-stone-400">
-                          Item Code: <span className="font-mono text-stone-200">{product.barcode || 'N/A'}</span>
-                        </p>
-                        <p className="text-xs text-stone-400">
-                          Bale Name: <span className="text-stone-200">{matchedBale?.baleName || product.baleName || 'N/A'}</span>
-                        </p>
-                        <p className="text-xs text-stone-400">
-                          Bale Code: <span className="font-mono text-orange-300">{product.baleCode || 'N/A'}</span>
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )
-            )}
-          </div>
-
           {/* Database Table Below with Search Button */}
           <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-orange-500/20">
@@ -1807,13 +1743,11 @@ export const InventoryManagementView: React.FC = () => {
                               <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-semibold">
                                 {p.size || 'Free Size'}
                               </span>
-                              <span className="px-2 py-0.5 rounded-full bg-stone-800 text-stone-300">
-                                {getProductCategory(p.baleCode || '', p.category)}
-                              </span>
+                              <p className="font-bold text-orange-400 text-sm font-mono">{p.baleCode}</p>
                             </div>
-                            {p.baleCode && (
-                              <p className="text-[10px] text-stone-400 font-mono mt-1">Bale: {p.baleCode}</p>
-                            )}
+                            <div>
+                              <p className="text-white-100 text-xs font-mono">{p.category}</p>
+                            </div>
                           </div>
                         </div>
 
@@ -1887,8 +1821,7 @@ export const InventoryManagementView: React.FC = () => {
                       <tr className="border-b border-orange-500/20 text-stone-400 uppercase text-[11px]">
                         <th className="py-3 px-3">Image</th>
                         <th className="py-3 px-3">Product Name & Size</th>
-                        <th className="py-3 px-3">Category</th>
-                        <th className="py-3 px-3">Bale Code</th>
+                        <th className="py-3 px-3">Bale Code & Category</th>
                         <th className="py-3 px-3 text-right">Selling Price</th>
                         <th className="py-3 px-3 text-right">Cost Price</th>
                         <th className="py-3 px-3 text-center">Stock Quantity</th>
@@ -1920,15 +1853,16 @@ export const InventoryManagementView: React.FC = () => {
                               <p className="text-[11px] text-orange-400">Size: {p.size || 'Free Size'}</p>
                             </td>
                             <td className="py-3 px-3 font-sans text-stone-300">
-                              {getProductCategory(p.baleCode || '', p.category)}
+                              <p className="font-bold text-orange-400 text-sm font-mono">{p.baleCode}</p>
+                              <p> {p.category}</p>
                             </td>
-                            <td className="py-3 px-3 text-stone-400 font-mono">{p.baleCode || 'N/A'}</td>
                             <td className="py-3 px-3 text-right font-bold text-orange-400">
                               ₱{p.sellingPrice.toLocaleString()}
                             </td>
                             <td className="py-3 px-3 text-right text-stone-400">
                               ₱{p.costPrice ? p.costPrice.toLocaleString() : '0'}
                             </td>
+                            {/* STOCK QUANTITY AND IF MISSING */}
                             <td className="py-3 px-3 text-center font-bold text-white">
                               <div className="flex flex-col items-center gap-1.5">
                                 <span className="rounded-full bg-emerald-950/80 px-2.5 py-1 text-xs text-emerald-300">
@@ -1944,6 +1878,7 @@ export const InventoryManagementView: React.FC = () => {
                             <td className="py-3 px-3 text-center font-mono text-[11px] text-orange-400 font-bold">
                               {p.barcode}
                             </td>
+
                             <td className="py-3 px-3 text-center">
                               <div className="flex items-center justify-center gap-1.5">
                                 <button
@@ -2006,7 +1941,7 @@ export const InventoryManagementView: React.FC = () => {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleConfirmDelete}
         title={deleteTarget?.title || 'Are you sure you want to delete?'}
-        message={deleteTarget?.message || 'If you clicked this by accident, click Cancel to keep it. This action cannot be undone.'}
+        message={deleteTarget?.message || 'If you clicked this by accident, click Cancel to keep it.'}
         itemName={deleteTarget?.itemName}
         itemDetails={deleteTarget?.details}
         isLoading={isDeleting}
