@@ -87,6 +87,10 @@ export const InventoryManagementView: React.FC = () => {
   const [balePage, setBalePage] = useState(1);
   const [baleSearch, setBaleSearch] = useState('');
   const [productPage, setProductPage] = useState(1);
+  const [isBaleFormOpen, setIsBaleFormOpen] = useState(false);
+  const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
+  const [isProductFormOpen, setIsProductFormOpen] = useState(false);
+  const [isSupplierFormOpen, setIsSupplierFormOpen] = useState(false);
 
   // ===================== 1. BALE MANAGEMENT STATE =====================
   const generateBaleCode = () => `BALE-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -180,9 +184,11 @@ export const InventoryManagementView: React.FC = () => {
     setBalePrice('');
     setBaleQuantity('');
     setBaleDesc('');
+    setIsBaleFormOpen(false);
   };
 
   const startEditBale = (b: Bale) => {
+    setIsBaleFormOpen(true);
     setEditingBaleId(b.id);
     setBaleCode(b.baleCode);
     setBaleName(b.baleName);
@@ -226,9 +232,11 @@ export const InventoryManagementView: React.FC = () => {
     setCategoryName('');
     setCategoryDesc('');
     setCategoryColor('#f97316');
+    setIsCategoryFormOpen(false);
   };
 
   const startEditCategory = (c: Category) => {
+    setIsCategoryFormOpen(true);
     setEditingCategoryId(c.id);
     setCategoryName(c.name);
     setCategoryDesc(c.description || '');
@@ -369,9 +377,11 @@ export const InventoryManagementView: React.FC = () => {
     setProductImageUrl('');
     setProductLink('');
     setProductDesc('');
+    setIsProductFormOpen(false);
   };
 
   const startEditProduct = (p: Product) => {
+    setIsProductFormOpen(true);
     setEditingProductId(p.id);
     setProductName(p.name);
     setProductCategory(getProductCategory(p.baleCode || '', p.category));
@@ -591,9 +601,11 @@ export const InventoryManagementView: React.FC = () => {
     setSupplierPhone('');
     setSupplierAddress('');
     setSupplierDesc('');
+    setIsSupplierFormOpen(false);
   };
 
   const startEditSupplier = (s: Supplier) => {
+    setIsSupplierFormOpen(true);
     setEditingSupplierId(s.id);
     setSupplierName(s.name);
     setContactPerson(s.contactPerson || '');
@@ -678,15 +690,20 @@ export const InventoryManagementView: React.FC = () => {
       {activeTab === 'suppliers' && (
         <div className="space-y-6">
           {/* Supplier Registration Form */}
+          {isSupplierFormOpen ? (
           <div ref={supplierFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Truck className="w-5 h-5 text-orange-400" />
                 <span>{editingSupplierId ? 'Edit Supplier Details' : 'Register Bale Supplier'}</span>
               </h2>
-              {editingSupplierId && (
+              {(
                 <button
-                  onClick={() => setEditingSupplierId(null)}
+                  type="button"
+                  onClick={() => {
+                    setEditingSupplierId(null);
+                    setIsSupplierFormOpen(false);
+                  }}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
                   Cancel
@@ -784,6 +801,24 @@ export const InventoryManagementView: React.FC = () => {
               </button>
             </form> 
           </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSupplierId(null);
+                setSupplierName('');
+                setContactPerson('');
+                setSupplierEmail('');
+                setSupplierPhone('');
+                setSupplierAddress('');
+                setSupplierDesc('');
+                setIsSupplierFormOpen(true);
+              }}
+              className="w-full p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
+            >
+              + Register Bale Supplier
+            </button>
+          )}
 
           {/* Card Display */}
           <div className="space-y-3">
@@ -892,15 +927,20 @@ export const InventoryManagementView: React.FC = () => {
       {activeTab === 'categories' && (
         <div className="space-y-6">
           {/* Category Form */}
+          {isCategoryFormOpen ? (
           <div ref={categoryFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Layers className="w-5 h-5 text-orange-400" />
                 <span>{editingCategoryId ? 'Edit Category' : 'Add Product Category'}</span>
               </h2>
-              {editingCategoryId && (
+              {(
                 <button
-                  onClick={() => setEditingCategoryId(null)}
+                  type="button"
+                  onClick={() => {
+                    setEditingCategoryId(null);
+                    setIsCategoryFormOpen(false);
+                  }}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
                   Cancel
@@ -958,6 +998,21 @@ export const InventoryManagementView: React.FC = () => {
               </div>
             </form>
           </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingCategoryId(null);
+                setCategoryName('');
+                setCategoryDesc('');
+                setCategoryColor('#f97316');
+                setIsCategoryFormOpen(true);
+              }}
+              className="w-full p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
+            >
+              + Add Product Category
+            </button>
+          )}
 
           {/* Card Display */}
           <div className="space-y-3">
@@ -1070,16 +1125,20 @@ export const InventoryManagementView: React.FC = () => {
       {/* ===================== TAB 3: BALE MANAGEMENT (Swapped to position 3) ===================== */}
       {activeTab === 'bales' && (
         <div className="space-y-6">
+          {isBaleFormOpen ? (
           <div ref={baleFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <Boxes className="w-5 h-5 text-orange-400" />
                 <span>{editingBaleId ? 'Edit Bale Record' : 'Enter New Bale Record'}</span>
               </h2>
-              {editingBaleId && (
+              {(
                 <button
                   type="button"
-                  onClick={() => setEditingBaleId(null)}
+                  onClick={() => {
+                    setEditingBaleId(null);
+                    setIsBaleFormOpen(false);
+                  }}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
                   Cancel
@@ -1237,6 +1296,25 @@ export const InventoryManagementView: React.FC = () => {
               </button>
             </form>
           </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingBaleId(null);
+                setBaleCode(generateBaleCode());
+                setBaleName('');
+                setBaleCategory('');
+                setBaleSupplierId('');
+                setBalePrice('');
+                setBaleQuantity('');
+                setBaleDesc('');
+                setIsBaleFormOpen(true);
+              }}
+              className="w-full p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
+            >
+              + Add Bale Record
+            </button>
+          )}
 
           {/* Database Table Below */}
           <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
@@ -1537,15 +1615,20 @@ export const InventoryManagementView: React.FC = () => {
       {activeTab === 'products' && (
         <div className="space-y-6">
           {/* Form */}
+          {isProductFormOpen ? (
           <div ref={productFormRef} className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-orange-400" />
                 <span>{editingProductId ? 'Edit Product Item' : 'List New Product'}</span>
               </h2>
-              {editingProductId && (
+              {(
                 <button
-                  onClick={() => setEditingProductId(null)}
+                  type="button"
+                  onClick={() => {
+                    setEditingProductId(null);
+                    setIsProductFormOpen(false);
+                  }}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
                   Cancel Edit
@@ -1718,6 +1801,28 @@ export const InventoryManagementView: React.FC = () => {
               </button>
             </form>
           </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingProductId(null);
+                setProductName('');
+                setProductCategory('');
+                setProductBaleCode('');
+                setProductQty('');
+                setProductSellingPrice('');
+                setProductCostPrice('');
+                setProductSize('M');
+                setProductImageUrl('');
+                setProductLink('');
+                setProductDesc('');
+                setIsProductFormOpen(true);
+              }}
+              className="w-full p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
+            >
+              + List New Product
+            </button>
+          )}
 
           {/* Database Table Below with Search Button */}
           <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">

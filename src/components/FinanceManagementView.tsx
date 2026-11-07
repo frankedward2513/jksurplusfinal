@@ -43,11 +43,23 @@ export const FinanceManagementView: React.FC = () => {
     deleteTransaction,
     showFormAlert,
   } = useStore();
+  const today = new Date();
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const formatMonth = (monthKey: string) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric',
+    });
+  };
 
   // 3 Tabs: 'accounts' | 'record' | 'history'
   const [activeTab, setActiveTab] = useState<'accounts' | 'record' | 'history'>('accounts');
   const [expenseAccountPage, setExpenseAccountPage] = useState(1);
+  const [expenseAccountSearch, setExpenseAccountSearch] = useState('');
   const [transactionPage, setTransactionPage] = useState(1);
+  const [isAccountFormOpen, setIsAccountFormOpen] = useState(false);
+  const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false);
 
   // Deletion confirmation state to prevent accidental deletes
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -117,9 +129,11 @@ export const FinanceManagementView: React.FC = () => {
     setMonthlyBudget('');
     setAccountDesc('');
     setAccountColor('#f97316');
+    setIsAccountFormOpen(false);
   };
 
   const startEditAccount = (acc: ExpenseAccount) => {
+    setIsAccountFormOpen(true);
     setEditingAccountId(acc.id);
     setAccountName(acc.name);
     setMonthlyBudget(acc.monthlyBudget);
@@ -170,6 +184,7 @@ export const FinanceManagementView: React.FC = () => {
     setDisbursementAmount('');
     setExpenseDesc('');
     setReceiptPhoto('');
+    setIsExpenseFormOpen(false);
     setActiveTab('history');
   };
 
@@ -397,7 +412,74 @@ export const FinanceManagementView: React.FC = () => {
     orders,
     products,
   ]);
-  const visibleExpenseAccounts = expenseAccounts.slice(
+  const filteredExpenseAccounts = useMemo(() => {
+    const query = expenseAccountSearch.trim().toLocaleLowerCase();
+    if (!query) return expenseAccounts;
+
+    return expenseAccounts.filter((account) =>
+      [account.name, account.description || ''].some((value) =>
+        value.toLocaleLowerCase().includes(query),
+      ),
+    );
+  }, [expenseAccounts, expenseAccountSearch]);
+  const monthlyExpenseBreakdown = useMemo(() => {
+    const monthTotals = new Map<string, Map<string, { name: string; amount: number; count: number }>>();
+
+    expenses.forEach((expense) => {
+      const monthKey = expense.date?.slice(0, 7);
+      if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return;
+
+      const accountsForMonth = monthTotals.get(monthKey) || new Map();
+      const accountKey = expense.accountId || expense.accountName;
+      const current = accountsForMonth.get(accountKey) || {
+        name: expense.accountName || 'General Operations',
+        amount: 0,
+        count: 0,
+      };
+      current.amount += Number(expense.amount) || 0;
+      current.count += 1;
+      accountsForMonth.set(accountKey, current);
+      monthTotals.set(monthKey, accountsForMonth);
+    });
+
+    return [...monthTotals.entries()]
+      .sort(([monthA], [monthB]) => monthB.localeCompare(monthA))
+      .map(([month, accountTotals]) => {
+        const accounts = [...accountTotals.entries()].map(([accountKey, total]) => {
+          const account = expenseAccounts.find(
+            (candidate) =>
+              candidate.id === accountKey ||
+              (!expenseAccounts.some((item) => item.id === accountKey) && candidate.name === total.name),
+          );
+          const budget = account?.monthlyBudget || 0;
+          return {
+            ...total,
+            budget,
+            saved: Math.max(0, budget - total.amount),
+            exceeded: Math.max(0, total.amount - budget),
+          };
+        });
+
+        return {
+          month,
+          accounts,
+          totalRecords: accounts.reduce((sum, account) => sum + account.count, 0),
+          totalExpense: accounts.reduce((sum, account) => sum + account.amount, 0),
+          totalSaved: accounts.reduce((sum, account) => sum + account.saved, 0),
+          totalExceeded: accounts.reduce((sum, account) => sum + account.exceeded, 0),
+        };
+      });
+  }, [expenses, expenseAccounts]);
+  const currentMonthAccountExpenses = useMemo(() => {
+    const totals = new Map<string, number>();
+    expenses.forEach((expense) => {
+      if (expense.date?.slice(0, 7) !== currentMonthKey) return;
+      const accountKey = expense.accountId || expense.accountName;
+      totals.set(accountKey, (totals.get(accountKey) || 0) + (Number(expense.amount) || 0));
+    });
+    return totals;
+  }, [expenses, currentMonthKey]);
+  const visibleExpenseAccounts = filteredExpenseAccounts.slice(
     (expenseAccountPage - 1) * PAGE_SIZE,
     expenseAccountPage * PAGE_SIZE,
   );
@@ -409,6 +491,10 @@ export const FinanceManagementView: React.FC = () => {
   useEffect(() => {
     setTransactionPage(1);
   }, [filteredTransactions]);
+
+  useEffect(() => {
+    setExpenseAccountPage(1);
+  }, [filteredExpenseAccounts]);
 
   // Total Inflow, Total Outflow, Net Operating Outflow/Inflow
   const summary = useMemo(() => {
@@ -544,18 +630,23 @@ export const FinanceManagementView: React.FC = () => {
       {activeTab === 'accounts' && (
         <div className="space-y-6">
           {/* Form */}
+          {isAccountFormOpen ? (
           <div ref={accountFormRef} className="p-6 rounded-3xl glass-panel space-y-4 scroll-mt-24">
             <div className="flex items-center justify-between pb-3 border-b border-orange-500/20">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-orange-400" />
                 <span>{editingAccountId ? 'Edit Expense Account' : 'New Expense Budget Account'}</span>
               </h2>
-              {editingAccountId && (
+              {(
                 <button
-                  onClick={() => setEditingAccountId(null)}
+                  type="button"
+                  onClick={() => {
+                    setEditingAccountId(null);
+                    setIsAccountFormOpen(false);
+                  }}
                   className="text-xs text-stone-400 hover:text-white"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               )}
             </div>
@@ -628,18 +719,52 @@ export const FinanceManagementView: React.FC = () => {
               </button>
             </form>
           </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingAccountId(null);
+                setAccountName('');
+                setMonthlyBudget('');
+                setAccountDesc('');
+                setAccountColor('#f97316');
+                setIsAccountFormOpen(true);
+              }}
+              className="w-full p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
+            >
+              + Add Expense Account
+            </button>
+          )}
 
           {/* KPI Cards below as requested */}
           <div className="space-y-3">
             <h3 className="text-base font-bold text-white">Expense Budget Utilization</h3>
+            <div className="relative w-full sm:max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+              <input
+                type="search"
+                placeholder="Search expense account name or description..."
+                value={expenseAccountSearch}
+                onChange={(event) => setExpenseAccountSearch(event.target.value)}
+                aria-label="Search expense accounts by name or description"
+                className="w-full pl-9 pr-4 py-2.5 sm:py-2 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm sm:text-xs text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
+              />
+            </div>
             {expenseAccounts.length === 0 ? (
               <div className="p-8 text-center rounded-3xl glass-panel text-xs text-stone-400">
                 No expense accounts defined yet. Add accounts like "Store Rent", "Staff Wages", "Electricity" above!
               </div>
+            ) : filteredExpenseAccounts.length === 0 ? (
+              <div className="p-8 text-center rounded-3xl glass-panel text-xs text-stone-400">
+                No expense accounts found matching "{expenseAccountSearch.trim()}".
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {visibleExpenseAccounts.map((acc) => {
-                  const spent = acc.totalSpent || 0;
+                  const spent =
+                    currentMonthAccountExpenses.get(acc.id) ??
+                    currentMonthAccountExpenses.get(acc.name) ??
+                    0;
                   const limit = acc.monthlyBudget || 1;
                   const percent = Math.round((spent / limit) * 100);
                   const isExceeded = spent > limit;
@@ -729,7 +854,7 @@ export const FinanceManagementView: React.FC = () => {
                               {isExceeded ? (
                                 <>
                                   <AlertTriangle className="w-3.5 h-3.5" />
-                                  <span>Exceeded by {(percent - 100)}%!</span>
+                                  <span>Exceeded by ₱{(spent - limit).toLocaleString()}</span>
                                 </>
                               ) : (
                                 <>
@@ -750,16 +875,100 @@ export const FinanceManagementView: React.FC = () => {
               </div>
             )}
             <Pagination
-              totalItems={expenseAccounts.length}
+              totalItems={filteredExpenseAccounts.length}
               currentPage={expenseAccountPage}
               onPageChange={setExpenseAccountPage}
             />
+
+            <section className="space-y-4 pt-4">
+              <div>
+                <h3 className="text-base font-bold text-white">Monthly Expense Summary</h3>
+                <p className="text-xs text-stone-400">
+                  Account cards show spending for {formatMonth(currentMonthKey)}. Savings are the unused
+                  portion of each account's monthly budget.
+                </p>
+              </div>
+
+              {monthlyExpenseBreakdown.length === 0 ? (
+                <div className="p-6 text-center rounded-2xl glass-panel text-xs text-stone-400">
+                  No monthly expense records yet.
+                </div>
+              ) : (
+                monthlyExpenseBreakdown.map((month) => (
+                  <div key={month.month} className="rounded-2xl glass-panel overflow-hidden">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-orange-500/20">
+                      <h4 className="font-bold text-orange-400">{formatMonth(month.month)}</h4>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono">
+                        <span className="text-orange-300">
+                          Total records: {month.totalRecords}
+                        </span>
+                        <span className="text-stone-300">
+                          Total Expense Recorded: ₱{month.totalExpense.toLocaleString()}
+                        </span>
+                        <span className="text-emerald-400">
+                          Saved: ₱{month.totalSaved.toLocaleString()}
+                        </span>
+                        <span className="text-rose-400">
+                          Exceeded: ₱{month.totalExceeded.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-stone-900 border-b border-orange-500/20">
+                          <tr className="text-stone-400 uppercase text-[11px]">
+                            <th className="py-3 px-3">Expense Account</th>
+                            <th className="py-3 px-3 text-right">Expense (₱)</th>
+                            <th className="py-3 px-3 text-right">Saved (₱)</th>
+                            <th className="py-3 px-3 text-right">Exceeded (₱)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-800 font-mono">
+                          {month.accounts.map((account) => (
+                            <tr
+                              key={`${month.month}-${account.name}`}
+                              className="hover:bg-stone-800/40 transition"
+                            >
+                              <td className="py-3.5 px-3 font-sans font-medium text-white">
+                                {account.name}
+                              </td>
+                              <td className="py-3.5 px-3 text-right text-stone-300">
+                                ₱{account.amount.toLocaleString()}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-bold text-emerald-400">
+                                {account.saved > 0 ? `₱${account.saved.toLocaleString()}` : '—'}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-bold text-rose-400">
+                                {account.exceeded > 0 ? `₱${account.exceeded.toLocaleString()}` : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                          <tr className="bg-stone-900/70 font-bold">
+                            <td className="py-3.5 px-3 text-white">Monthly Total</td>
+                            <td className="py-3.5 px-3 text-right text-stone-200">
+                              ₱{month.totalExpense.toLocaleString()}
+                            </td>
+                            <td className="py-3.5 px-3 text-right text-emerald-400">
+                              ₱{month.totalSaved.toLocaleString()}
+                            </td>
+                            <td className="py-3.5 px-3 text-right text-rose-400">
+                              ₱{month.totalExceeded.toLocaleString()}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
           </div>
         </div>
       )}
 
       {/* ===================== TAB 2: RECORD EXPENSE ===================== */}
       {activeTab === 'record' && (
+        isExpenseFormOpen ? (
         <div className="p-6 rounded-3xl glass-panel space-y-4 max-w-2xl mx-auto">
           <div className="pb-3 border-b border-orange-500/20">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -883,15 +1092,41 @@ export const FinanceManagementView: React.FC = () => {
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={expenseAccounts.length === 0}
-              className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white font-bold text-sm shadow-md shadow-orange-600/30 transition cursor-pointer disabled:opacity-50"
-            >
-              Record & Disburse Expense
-            </button>
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => setIsExpenseFormOpen(false)}
+                className="w-full sm:w-auto py-3.5 px-6 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-sm transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={expenseAccounts.length === 0}
+                className="w-full sm:flex-1 py-3.5 px-6 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white font-bold text-sm shadow-md shadow-orange-600/30 transition cursor-pointer disabled:opacity-50"
+              >
+                Record & Disburse Expense
+              </button>
+            </div>
           </form>
         </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedAccountId('');
+              setDisbursementAmount('');
+              setDisbursementDate(new Date().toISOString().split('T')[0]);
+              setPaymentMethod('gcash');
+              setReceiptPhoto('');
+              setExpenseDesc('');
+              setIsExpenseFormOpen(true);
+            }}
+            className="w-full max-w-2xl mx-auto block p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
+          >
+            + Record Expense
+          </button>
+        )
       )}
 
       {/* ===================== TAB 3: TRANSACTION HISTORY ===================== */}
