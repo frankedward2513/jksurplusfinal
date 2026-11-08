@@ -20,7 +20,7 @@ import {
 import { PAGE_SIZE, Pagination } from './Pagination';
 import type { ActiveTab } from './Navbar';
 
-type DateFilterPreset = 'all' | 'today' | 'last7' | 'last30' | 'this_month' | 'custom';
+type DateFilterPreset = 'all' | 'today' | 'last7' | 'this_month' | 'custom';
 
 interface DashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -70,10 +70,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         const past7 = new Date();
         past7.setDate(now.getDate() - 7);
         return target >= past7 && target <= now;
-      } else if (dateFilter === 'last30') {
-        const past30 = new Date();
-        past30.setDate(now.getDate() - 30);
-        return target >= past30 && target <= now;
       } else if (dateFilter === 'this_month') {
         return target.getFullYear() === now.getFullYear() && target.getMonth() === now.getMonth();
       } else if (dateFilter === 'custom') {
@@ -256,7 +252,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
   const expenseAccountTotals = useMemo(() => {
     const totals = new Map<string, number>();
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     expenses.forEach((expense) => {
+      const dateKey = getLocalDateKey(expense.date || expense.createdAt);
+      if (!dateKey || dateKey.slice(0, 7) !== currentMonthKey) return;
       const key = expense.accountId || expense.accountName;
       totals.set(key, (totals.get(key) || 0) + (Number(expense.amount) || 0));
     });
@@ -265,7 +265,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       .map((account) => ({
         id: account.id,
         name: account.name,
-        total: totals.get(account.id) ?? totals.get(account.name) ?? Number(account.totalSpent) ?? 0,
+        total: totals.get(account.id) ?? totals.get(account.name) ?? 0,
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
@@ -445,14 +445,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               Last 7d
             </button>
             <button
-              onClick={() => setDateFilter('last30')}
-              className={`px-2 py-1 rounded-lg transition font-medium cursor-pointer shrink-0 ${
-                dateFilter === 'last30' ? 'bg-orange-600 text-white shadow-sm' : 'text-stone-400 hover:text-stone-200'
-              }`}
-            >
-              Last 30d
-            </button>
-            <button
               onClick={() => setDateFilter('this_month')}
               className={`px-2 py-1 rounded-lg transition font-medium cursor-pointer shrink-0 ${
                 dateFilter === 'this_month' ? 'bg-orange-600 text-white shadow-sm' : 'text-stone-400 hover:text-stone-200'
@@ -588,9 +580,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               <TrendingUp className="w-5 h-5 text-orange-400" />
               <span>Sales and Expense Inflow/Outflow Comparison</span>
             </h2>
-            <p className="text-xs text-stone-400">
-              Interactive timeline trend comparing revenue inflows against expense outflows
-            </p>
           </div>
 
           {/* Requested specific Legend */}
@@ -694,9 +683,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               <Layers className="w-5 h-5 text-orange-400" />
               <span>Monthly Performance Breakdown Summary</span>
             </h2>
-            <p className="text-xs text-stone-400">
-              Historical review of monthly sales inflows, expense outflows, net operating profit & profit margin
-            </p>
           </div>
           <span className="text-xs px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-mono">
             {monthlyBreakdown.length} Recorded Months
@@ -774,7 +760,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   <TrendingUp className="w-5 h-5 text-emerald-400" />
                   Best-selling categories
                 </h2>
-                <p className="text-xs text-stone-400 mt-1">Ranked by units sold across completed and active orders</p>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1">
                 Top 5
@@ -815,7 +800,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   <AlertTriangle className="w-5 h-5 text-amber-400" />
                   Low stock watchlist
                 </h2>
-                <p className="text-xs text-stone-400 mt-1">Categories with fewer than 50 units in total across their products</p>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
                 {lowStockCategories.length} categories
@@ -864,7 +848,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   <ReceiptText className="w-5 h-5 text-rose-400" />
                   Expense accounts
                 </h2>
-                <p className="text-xs text-stone-400 mt-1">Highest total spend, ranked by account</p>
               </div>
               <button
                 type="button"
@@ -909,7 +892,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   <CalendarDays className="w-5 h-5 text-sky-400" />
                   Sales forecast summary
                 </h2>
-                <p className="text-xs text-stone-400 mt-1">Projected sales from the recent daily sales trend</p>
               </div>
               <button
                 type="button"
@@ -927,7 +909,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 </div>
               ))}
             </div>
-            <p className="text-[11px] text-stone-500">Estimate uses 30 days of sales history and the same exponential smoothing approach as Sales Forecast.</p>
           </div>
         </div>
 
@@ -938,7 +919,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 <Clock3 className="w-5 h-5 text-orange-400" />
                 Slow-moving products
               </h2>
-              <p className="text-xs text-stone-400 mt-1">Up to 10 products with the longest time since their last sale in each category</p>
             </div>
             <div className="flex items-center gap-2">
               <label htmlFor="slow-moving-category" className="sr-only">Filter by category</label>

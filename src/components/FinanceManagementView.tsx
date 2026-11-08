@@ -44,7 +44,12 @@ export const FinanceManagementView: React.FC = () => {
     showFormAlert,
   } = useStore();
   const today = new Date();
-  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const [expenseFilterMonth, setExpenseFilterMonth] = useState(String(today.getMonth() + 1).padStart(2, '0'));
+  const [expenseFilterYear, setExpenseFilterYear] = useState(String(today.getFullYear()));
+  const selectedExpenseMonthKey =
+    /^\d{4}$/.test(expenseFilterYear) && Number(expenseFilterYear) > 0
+      ? `${expenseFilterYear}-${expenseFilterMonth}`
+      : '';
   const formatMonth = (monthKey: string) => {
     const [year, month] = monthKey.split('-').map(Number);
     return new Date(year, month - 1, 1).toLocaleDateString(undefined, {
@@ -427,7 +432,7 @@ export const FinanceManagementView: React.FC = () => {
 
     expenses.forEach((expense) => {
       const monthKey = expense.date?.slice(0, 7);
-      if (!monthKey || !/^\d{4}-\d{2}$/.test(monthKey)) return;
+      if (!monthKey || monthKey !== selectedExpenseMonthKey) return;
 
       const accountsForMonth = monthTotals.get(monthKey) || new Map();
       const accountKey = expense.accountId || expense.accountName;
@@ -469,16 +474,16 @@ export const FinanceManagementView: React.FC = () => {
           totalExceeded: accounts.reduce((sum, account) => sum + account.exceeded, 0),
         };
       });
-  }, [expenses, expenseAccounts]);
+  }, [expenses, expenseAccounts, selectedExpenseMonthKey]);
   const currentMonthAccountExpenses = useMemo(() => {
     const totals = new Map<string, number>();
     expenses.forEach((expense) => {
-      if (expense.date?.slice(0, 7) !== currentMonthKey) return;
+      if (!selectedExpenseMonthKey || expense.date?.slice(0, 7) !== selectedExpenseMonthKey) return;
       const accountKey = expense.accountId || expense.accountName;
       totals.set(accountKey, (totals.get(accountKey) || 0) + (Number(expense.amount) || 0));
     });
     return totals;
-  }, [expenses, currentMonthKey]);
+  }, [expenses, selectedExpenseMonthKey]);
   const visibleExpenseAccounts = filteredExpenseAccounts.slice(
     (expenseAccountPage - 1) * PAGE_SIZE,
     expenseAccountPage * PAGE_SIZE,
@@ -738,17 +743,61 @@ export const FinanceManagementView: React.FC = () => {
 
           {/* KPI Cards below as requested */}
           <div className="space-y-3">
-            <h3 className="text-base font-bold text-white">Expense Budget Utilization</h3>
-            <div className="relative w-full sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-              <input
-                type="search"
-                placeholder="Search expense account name or description..."
-                value={expenseAccountSearch}
-                onChange={(event) => setExpenseAccountSearch(event.target.value)}
-                aria-label="Search expense accounts by name or description"
-                className="w-full pl-9 pr-4 py-2.5 sm:py-2 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm sm:text-xs text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
-              />
+            <div className="flex flex-col lg:flex-row lg:items-end gap-4 p-4 rounded-2xl glass-panel">
+              <div className="flex-1 space-y-2">
+                <h3 className="text-base font-bold text-white">Expense Budget Utilization</h3>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                  <input
+                    type="search"
+                    placeholder="Search expense account name or description..."
+                    value={expenseAccountSearch}
+                    onChange={(event) => setExpenseAccountSearch(event.target.value)}
+                    aria-label="Search expense accounts by name or description"
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-sm sm:text-xs text-stone-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 transition-all duration-200"
+                  />
+                </div>
+              </div>
+              <div aria-hidden="true" className="h-px w-full bg-orange-500/20 lg:h-12 lg:w-px" />
+              <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(6rem,0.8fr)] gap-3 lg:w-[24rem] lg:shrink-0">
+                <div>
+                  <label htmlFor="expense-summary-month" className="block text-xs font-medium text-stone-300 mb-1">
+                    Month
+                  </label>
+                  <select
+                    id="expense-summary-month"
+                    value={expenseFilterMonth}
+                    onChange={(event) => setExpenseFilterMonth(event.target.value)}
+                    className="w-full min-w-0 px-3 py-2.5 rounded-xl bg-stone-950 border border-orange-500/25 text-sm text-stone-100 focus:outline-none focus:border-orange-500"
+                  >
+                    {Array.from({ length: 12 }, (_, index) => {
+                      const month = String(index + 1).padStart(2, '0');
+                      return (
+                        <option key={month} value={month}>
+                          {new Date(2000, index, 1).toLocaleDateString(undefined, { month: 'long' })}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="expense-summary-year" className="block text-xs font-medium text-stone-300 mb-1">
+                    Year
+                  </label>
+                  <input
+                    id="expense-summary-year"
+                    type="number"
+                    min="1"
+                    max="9999"
+                    step="1"
+                    inputMode="numeric"
+                    placeholder="Enter year"
+                    value={expenseFilterYear}
+                    onChange={(event) => setExpenseFilterYear(event.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-stone-950 border border-orange-500/25 text-sm text-stone-100 focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+              </div>
             </div>
             {expenseAccounts.length === 0 ? (
               <div className="p-8 text-center rounded-3xl glass-panel text-xs text-stone-400">
@@ -883,10 +932,6 @@ export const FinanceManagementView: React.FC = () => {
             <section className="space-y-4 pt-4">
               <div>
                 <h3 className="text-base font-bold text-white">Monthly Expense Summary</h3>
-                <p className="text-xs text-stone-400">
-                  Account cards show spending for {formatMonth(currentMonthKey)}. Savings are the unused
-                  portion of each account's monthly budget.
-                </p>
               </div>
 
               {monthlyExpenseBreakdown.length === 0 ? (
@@ -975,9 +1020,6 @@ export const FinanceManagementView: React.FC = () => {
               <Receipt className="w-5 h-5 text-orange-400" />
               <span>Record Expense Disbursement</span>
             </h2>
-            <p className="text-xs text-stone-400">
-              Disburse operational funds. This automatically creates an outflow in the financial ledger.
-            </p>
           </div>
 
           <form onSubmit={handleSaveExpense} className="space-y-4 text-xs">
@@ -1531,13 +1573,7 @@ export const FinanceManagementView: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2 flex-wrap">
                   <span>Financial Transactions Ledger</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    Newest First (Current Date → Past)
-                  </span>
                 </h3>
-                <p className="text-xs text-stone-400 mt-0.5">
-                  Transactions sorted chronologically from current date to past. Showing up to 15 transactions per page.
-                </p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono text-orange-400 bg-stone-950 px-3 py-1.5 rounded-xl border border-orange-500/20">

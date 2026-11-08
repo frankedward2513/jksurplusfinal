@@ -327,9 +327,6 @@ export const AiChatbotView: React.FC = () => {
                 Inventory & Expense Assistant
               </span>
             </div>
-            <p className="text-xs text-stone-300">
-              Direct answers & smart recommendations for EXINS Jksur+ Novaliches Quezon City
-            </p>
           </div>
         </div>
 

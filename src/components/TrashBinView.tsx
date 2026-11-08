@@ -88,7 +88,7 @@ export const TrashBinView: React.FC = () => {
           <div>
             <h1 className="text-2xl font-black text-white">exBIN</h1>
             <p className="mt-1 text-sm text-stone-400">
-              Deleted records stay here for 30 days, then move to the archive. Restore items individually or select several.
+              Items move to the archive after 30 days. 
             </p>
           </div>
         </div>
@@ -193,9 +193,6 @@ export const TrashBinView: React.FC = () => {
           </ul>
         )}
       </div>
-      <p className="text-center text-xs text-stone-500">
-        Items move to the archive after 30 days. Only the owner account can access exBIN.
-      </p>
     </section>
   );
 };

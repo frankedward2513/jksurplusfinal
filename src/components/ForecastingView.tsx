@@ -245,11 +245,8 @@ export const ForecastingView: React.FC = () => {
           <div>
             <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-orange-400" />
-              <span>Sales Forecast (EWMA Momentum Model)</span>
+              <span>Sales Forecast</span>
             </h2>
-            <p className="text-xs text-stone-400 font-mono">
-              Predicts upcoming store sales using historical sales trends.
-            </p>
           </div>
 
           {/* Smoothed Forecast Summary Badge */}
@@ -339,10 +336,6 @@ export const ForecastingView: React.FC = () => {
                   <TrendingUp className="w-5 h-5 text-orange-400" />
                   <span>Sales Forecast Graph (Actual vs Predicted EWMA)</span>
                 </h3>
-                <p className="text-xs text-stone-400 mt-0.5">
-                  Showing {visibleHistoryCount} historical {periodLabelPlural} + {forecastHorizon} forecast {periodLabelPlural} ({visibleDatesCount} intervals total).
-                  Use the horizontal scrollbar to look back through {historicalRange} of sales.
-                </p>
               </div>
 
               {/* Legend */}

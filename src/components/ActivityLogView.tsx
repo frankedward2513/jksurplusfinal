@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, ClipboardList, LoaderCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Calendar, ClipboardList, Filter, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { supabase } from '../lib/supabase';
 import { PAGE_SIZE, Pagination } from './Pagination';
@@ -8,7 +8,7 @@ interface ActivityLogEntry {
   id: number;
   table_name: string;
   record_id: string | null;
-  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'SALE';
   actor_name: string;
   actor_email: string | null;
   occurred_at: string;
@@ -37,6 +37,7 @@ function getLoadErrorMessage(error: unknown): string {
 }
 
 function formatAction(action: ActivityLogEntry['action']): string {
+  if (action === 'SALE') return 'Sale';
   if (action === 'INSERT') return 'Added';
   if (action === 'UPDATE') return 'Edited';
   return 'Deleted';
@@ -44,6 +45,9 @@ function formatAction(action: ActivityLogEntry['action']): string {
 
 export const ActivityLogView: React.FC = () => {
   const { currentUser } = useStore();
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'last7' | 'this_month' | 'custom'>('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
@@ -54,11 +58,41 @@ export const ActivityLogView: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const { data, count, error: queryError } = await supabase
+      let query = supabase
         .from('audit_logs')
         .select('id, table_name, record_id, action, actor_name, actor_email, occurred_at', {
           count: 'exact',
-        })
+        });
+
+      if (dateFilter !== 'all') {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        let end: Date | null = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+        if (dateFilter === 'last7') {
+          start.setDate(start.getDate() - 6);
+        } else if (dateFilter === 'this_month') {
+          start.setDate(1);
+          end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        } else if (dateFilter === 'custom') {
+          end = null;
+          if (customStart) {
+            const [year, month, day] = customStart.split('-').map(Number);
+            start.setFullYear(year, month - 1, day);
+          }
+          if (customEnd) {
+            const [year, month, day] = customEnd.split('-').map(Number);
+            end = new Date(year, month - 1, day + 1);
+          }
+        }
+
+        if (dateFilter !== 'custom' || customStart) {
+          query = query.gte('occurred_at', start.toISOString());
+        }
+        if (end) query = query.lt('occurred_at', end.toISOString());
+      }
+
+      const { data, count, error: queryError } = await query
         .order('occurred_at', { ascending: false })
         .order('id', { ascending: false })
         .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
@@ -70,11 +104,26 @@ export const ActivityLogView: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage]);
+  }, [currentPage, dateFilter, customStart, customEnd]);
 
   useEffect(() => {
     if (currentUser.role === 'owner') void refresh();
   }, [currentUser.role, refresh]);
+
+  const handleDateFilterChange = (filter: 'all' | 'today' | 'last7' | 'this_month' | 'custom') => {
+    setDateFilter(filter);
+    setCurrentPage(1);
+  };
+
+  const handleCustomStartChange = (value: string) => {
+    setCustomStart(value);
+    setCurrentPage(1);
+  };
+
+  const handleCustomEndChange = (value: string) => {
+    setCustomEnd(value);
+    setCurrentPage(1);
+  };
 
   if (currentUser.role !== 'owner') {
     return (
@@ -86,27 +135,76 @@ export const ActivityLogView: React.FC = () => {
 
   return (
     <section className="space-y-6">
-      <header className="flex flex-col gap-4 rounded-3xl p-5 glass-panel sm:flex-row sm:items-center sm:justify-between sm:p-7">
-        <div className="flex items-start gap-4">
-          <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-3 text-orange-400">
-            <ClipboardList className="h-6 w-6" />
+      <header className="rounded-3xl p-5 glass-panel sm:p-7">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center">
+          <div className="flex min-w-0 items-start gap-4 xl:flex-1">
+            <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-3 text-orange-400">
+              <ClipboardList className="h-6 w-6" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black text-white">Status Log</h1>
+              <p className="mt-1 text-sm text-stone-400">
+                View who added, edited, or deleted records and when those changes happened.
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-white">Status Log</h1>
-            <p className="mt-1 text-sm text-stone-400">
-              View who added, edited, or deleted records and when those changes happened.
-            </p>
+
+          <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
+            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-orange-500/20 bg-stone-950/70 p-1 text-xs">
+              <Filter className="ml-1.5 h-3.5 w-3.5 shrink-0 text-orange-400" />
+              {([
+                ['all', 'All time'],
+                ['today', 'Today'],
+                ['last7', 'Last 7d'],
+                ['this_month', 'This month'],
+                ['custom', 'Custom'],
+              ] as const).map(([filter, label]) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => handleDateFilterChange(filter)}
+                  aria-pressed={dateFilter === filter}
+                  className={`shrink-0 cursor-pointer rounded-lg px-2 py-1 font-medium transition ${
+                    dateFilter === filter
+                      ? 'bg-orange-600 text-white shadow-sm'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {dateFilter === 'custom' && (
+              <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-orange-500/30 bg-stone-950/80 p-1.5 text-xs">
+                <Calendar className="h-3.5 w-3.5 text-orange-400" />
+                <input
+                  type="date"
+                  aria-label="Start date"
+                  value={customStart}
+                  onChange={(event) => handleCustomStartChange(event.target.value)}
+                  className="dashboard-custom-date bg-transparent text-xs text-stone-200 focus:outline-none"
+                />
+                <span className="text-stone-500">to</span>
+                <input
+                  type="date"
+                  aria-label="End date"
+                  value={customEnd}
+                  onChange={(event) => handleCustomEndChange(event.target.value)}
+                  className="dashboard-custom-date bg-transparent text-xs text-stone-200 focus:outline-none"
+                />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={isLoading}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/20 hover:text-white disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={isLoading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-semibold text-orange-300 transition hover:bg-orange-500/20 hover:text-white disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
       </header>
 
       {error && (
@@ -125,9 +223,21 @@ export const ActivityLogView: React.FC = () => {
         ) : totalEntries === 0 ? (
           <div className="p-12 text-center">
             <ClipboardList className="mx-auto h-10 w-10 text-stone-600" />
-            <h2 className="mt-4 font-bold text-stone-200">No activity recorded yet</h2>
+            <h2 className="mt-4 font-bold text-stone-200">
+              {dateFilter === 'all' ? 'No activity recorded yet' : 'No activity in this date range'}
+            </h2>
             <p className="mt-1 text-sm text-stone-500">
-              Changes will appear here after the activity log database setup is complete.
+              {dateFilter === 'all'
+                ? 'Changes will appear here after the activity log database setup is complete.'
+                : `No activity found for ${
+                    dateFilter === 'today'
+                      ? 'today'
+                      : dateFilter === 'last7'
+                        ? 'the last 7 days'
+                        : dateFilter === 'this_month'
+                          ? 'this month'
+                          : 'the selected dates'
+                  }.`}
             </p>
           </div>
         ) : (
@@ -160,8 +270,10 @@ export const ActivityLogView: React.FC = () => {
                     <td className="py-3.5 px-4 font-sans">
                       <span
                         className={`inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          entry.action === 'INSERT'
-                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                          entry.action === 'SALE'
+                            ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
+                            : entry.action === 'INSERT'
+                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
                             : entry.action === 'UPDATE'
                               ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
                               : 'border-rose-500/30 bg-rose-500/10 text-rose-400'

@@ -1,23 +1,61 @@
 import React, { useMemo, useState } from 'react';
-import { ReceiptText } from 'lucide-react';
+import { Calendar, Filter, ReceiptText } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import type { Order } from '../types';
 import { PAGE_SIZE, Pagination } from './Pagination';
 import { ReceiptModal } from './ReceiptModal';
 
+type ReceiptDateFilter = 'all' | 'today' | 'last7' | 'this_month' | 'custom';
+
+function getLocalDateKey(value: string | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export const ReceiptsView: React.FC = () => {
   const { currentUser, orders, isDarkMode } = useStore();
+  const [dateFilter, setDateFilter] = useState<ReceiptDateFilter>('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  const receipts = useMemo(
-    () =>
-      orders
-        .filter((order) => order.id.startsWith('pos_') || order.orderNumber.startsWith('POS-'))
-        .slice()
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [orders],
-  );
+  const receipts = useMemo(() => {
+    const now = new Date();
+    const todayKey = getLocalDateKey(now.toISOString());
+    const startOfLast7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    const last7StartKey = getLocalDateKey(startOfLast7Days.toISOString());
+    const currentMonthKey = todayKey?.slice(0, 7);
+
+    return orders
+      .filter((order) => {
+        if (!order.id.startsWith('pos_') && !order.orderNumber.startsWith('POS-')) return false;
+        if (dateFilter === 'all') return true;
+
+        const orderDateKey = getLocalDateKey(order.createdAt);
+        if (!orderDateKey) return false;
+        if (dateFilter === 'today') return orderDateKey === todayKey;
+        if (dateFilter === 'last7') {
+          return !!last7StartKey && orderDateKey >= last7StartKey && orderDateKey <= (todayKey || '');
+        }
+        if (dateFilter === 'this_month') return orderDateKey.startsWith(currentMonthKey || '');
+        if (customStart && orderDateKey < customStart) return false;
+        if (customEnd && orderDateKey > customEnd) return false;
+        return true;
+      })
+      .slice()
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [orders, dateFilter, customStart, customEnd]);
+
+  const handleDateFilterChange = (filter: ReceiptDateFilter) => {
+    setDateFilter(filter);
+    setCurrentPage(1);
+  };
 
   const visibleReceipts = receipts.slice(
     (currentPage - 1) * PAGE_SIZE,
@@ -34,15 +72,65 @@ export const ReceiptsView: React.FC = () => {
 
   return (
     <section className="space-y-6">
-      <header className="flex items-center gap-4 rounded-3xl p-5 glass-panel sm:p-7">
-        <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-3 text-orange-400">
-          <ReceiptText className="h-6 w-6" />
-        </div>
-        <div>
+      <header className="flex flex-wrap items-center gap-4 rounded-3xl p-5 glass-panel sm:p-7">
+        <div className="flex shrink-0 items-center gap-4">
+          <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-3 text-orange-400">
+            <ReceiptText className="h-6 w-6" />
+          </div>
           <h1 className="text-2xl font-black text-white">Receipts</h1>
-          <p className="mt-1 text-sm text-stone-400">
-            POS receipts, ordered from newest to oldest.
-          </p>
+        </div>
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-orange-500/20 bg-stone-950/70 p-1 text-xs">
+              <Filter className="ml-1.5 h-3.5 w-3.5 shrink-0 text-orange-400" />
+              {([
+                ['all', 'All time'],
+                ['today', 'Today'],
+                ['last7', 'Last 7d'],
+                ['this_month', 'This month'],
+                ['custom', 'Custom'],
+              ] as const).map(([filter, label]) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => handleDateFilterChange(filter)}
+                  aria-pressed={dateFilter === filter}
+                  className={`shrink-0 cursor-pointer rounded-lg px-2 py-1 font-medium transition ${
+                    dateFilter === filter
+                      ? 'bg-orange-600 text-white shadow-sm'
+                      : 'text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {dateFilter === 'custom' && (
+              <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-orange-500/30 bg-stone-950/80 p-1.5 text-xs">
+                <Calendar className="h-3.5 w-3.5 text-orange-400" />
+                <input
+                  type="date"
+                  aria-label="Start date"
+                  value={customStart}
+                  onChange={(event) => {
+                    setCustomStart(event.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="dashboard-custom-date bg-transparent text-xs text-stone-200 focus:outline-none"
+                />
+                <span className="text-stone-500">to</span>
+                <input
+                  type="date"
+                  aria-label="End date"
+                  value={customEnd}
+                  onChange={(event) => {
+                    setCustomEnd(event.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="dashboard-custom-date bg-transparent text-xs text-stone-200 focus:outline-none"
+                />
+              </div>
+            )}
         </div>
       </header>
 
@@ -53,8 +141,22 @@ export const ReceiptsView: React.FC = () => {
         {receipts.length === 0 ? (
           <div className="p-12 text-center">
             <ReceiptText className="mx-auto h-10 w-10 text-stone-600" />
-            <h2 className="mt-4 font-bold text-stone-200">No receipts yet</h2>
-            <p className="mt-1 text-sm text-stone-500">Completed POS sales will appear here.</p>
+            <h2 className="mt-4 font-bold text-stone-200">
+              {dateFilter === 'all' ? 'No receipts yet' : 'No receipts in this date range'}
+            </h2>
+            <p className="mt-1 text-sm text-stone-500">
+              {dateFilter === 'all'
+                ? 'Completed POS sales will appear here.'
+                : `No completed POS sales found for ${
+                    dateFilter === 'today'
+                      ? 'today'
+                      : dateFilter === 'last7'
+                        ? 'the last 7 days'
+                        : dateFilter === 'this_month'
+                          ? 'this month'
+                          : 'the selected dates'
+                  }.`}
+            </p>
           </div>
         ) : (
           <>
