@@ -11,8 +11,8 @@ import { AiChatbotView } from './components/AiChatbotView';
 import { AuthModal } from './components/AuthModal';
 import { FormSuccessAlert } from './components/FormSuccessAlert';
 import { TrashBinView } from './components/TrashBinView';
-import { ActivityLogView } from './components/ActivityLogView';
 import { ReceiptsView } from './components/ReceiptsView';
+import { ActivityLogView } from './components/ActivityLogView';
 
 const MainLayout: React.FC = () => {
   const { currentUser, isDarkMode } = useStore();

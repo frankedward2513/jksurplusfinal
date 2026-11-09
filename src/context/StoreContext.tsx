@@ -1272,34 +1272,47 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setOrders((prev) => [newOrder, ...prev]);
 
-    // Deduct inventory
-    params.items.forEach(({ product, quantity }) => {
-      setProducts((prev) =>
-        prev.map((p) => {
-          if (p.id === product.id) {
-            const newQty = Math.max(0, p.availableQuantity - quantity);
-            updateProduct(p.id, { availableQuantity: newQty }, false);
-            return { ...p, availableQuantity: newQty };
-          }
-          return p;
-        })
-      );
+    try {
+      await setDoc(doc(db, 'orders', id), cleanFirestoreData(newOrder));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `orders/${id}`);
+      showMutationError('complete', 'POS sale', err);
+      throw err;
+    }
 
-      // Increment bale sales
+    const soldQuantityByProduct = new Map<string, { product: Product; quantity: number }>();
+    const salesTotalByBale = new Map<string, number>();
+    params.items.forEach(({ product, quantity }) => {
+      const soldProduct = soldQuantityByProduct.get(product.id);
+      soldQuantityByProduct.set(product.id, {
+        product,
+        quantity: (soldProduct?.quantity || 0) + quantity,
+      });
+
       if (product.baleCode) {
-        setBales((prev) =>
-          prev.map((b) => {
-            if (b.baleCode === product.baleCode) {
-              const itemTotal = product.sellingPrice * quantity;
-              const newSales = (b.totalSalesMade || 0) + itemTotal;
-              updateBale(b.id, { totalSalesMade: newSales }, false);
-              return { ...b, totalSalesMade: newSales };
-            }
-            return b;
-          })
+        salesTotalByBale.set(
+          product.baleCode,
+          (salesTotalByBale.get(product.baleCode) || 0) + product.sellingPrice * quantity,
         );
       }
+    });
 
+    // Keep database writes outside React state updaters so Strict Mode cannot repeat them.
+    for (const { product, quantity } of soldQuantityByProduct.values()) {
+      const newQty = Math.max(0, product.availableQuantity - quantity);
+      await updateProduct(product.id, { availableQuantity: newQty }, false);
+    }
+
+    for (const [baleCode, itemTotal] of salesTotalByBale) {
+      const bale = bales.find((entry) => entry.baleCode === baleCode);
+      if (bale) {
+        await updateBale(bale.id, {
+          totalSalesMade: (bale.totalSalesMade || 0) + itemTotal,
+        }, false);
+      }
+    }
+
+    params.items.forEach(({ product, quantity }) => {
       // Log sold
       logItemStatus({
         productId: product.id,
@@ -1330,10 +1343,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTransactions((prev) => [newTx, ...prev]);
 
     try {
-      await setDoc(doc(db, 'orders', id), cleanFirestoreData(newOrder));
       await setDoc(doc(db, 'transactions', txId), cleanFirestoreData(newTx));
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `orders/${id}`);
+      handleFirestoreError(err, OperationType.CREATE, `transactions/${txId}`);
       showMutationError('complete', 'POS sale', err);
       throw err;
     }

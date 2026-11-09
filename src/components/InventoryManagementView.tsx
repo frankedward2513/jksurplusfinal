@@ -11,8 +11,10 @@ import {
   Trash2,
   Upload, 
   HelpCircle,
+  Eye,
 } from 'lucide-react';
 import { LogItemStatusModal } from './LogItemStatusModal';
+import { ViewProductLostModal } from './ViewProductLostModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { PAGE_SIZE, Pagination } from './Pagination';
 import { formatContactNumber, isValidContactNumber, isValidEmail } from '../utils/validation';
@@ -40,6 +42,7 @@ export const InventoryManagementView: React.FC = () => {
   } = useStore();
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [isViewLostModalOpen, setIsViewLostModalOpen] = useState(false);
 
   // Deletion confirmation state to prevent accidental deletes
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -1848,6 +1851,14 @@ export const InventoryManagementView: React.FC = () => {
                   <HelpCircle className="w-3.5 h-3.5" />
                   <span>Log Lost Item</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setIsViewLostModalOpen(true)}
+                  className="py-2.5 px-3.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm shrink-0"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>View Lost Items</span>
+                </button>
 
                 {/* Search button / input to find product */}
                 <div className="relative w-full sm:w-72">
@@ -2087,6 +2098,11 @@ export const InventoryManagementView: React.FC = () => {
       <LogItemStatusModal
         isOpen={isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
+      />
+
+      <ViewProductLostModal
+        isOpen={isViewLostModalOpen}
+        onClose={() => setIsViewLostModalOpen(false)}
       />
 
       {/* Confirmation Modal to prevent accidental deletions */}

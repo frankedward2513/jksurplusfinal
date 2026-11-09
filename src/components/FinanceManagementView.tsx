@@ -20,9 +20,7 @@ import {
   CreditCard,
   ArrowUpRight,
   ArrowDownRight,
-  Eye,
 } from 'lucide-react';
-import { ViewProductLostModal } from './ViewProductLostModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { PAGE_SIZE, Pagination } from './Pagination';
 import { addMissingPosInflows, isDateWithinFilter } from '../utils/financialInflow';
@@ -208,7 +206,6 @@ export const FinanceManagementView: React.FC = () => {
   const [datePreset, setDatePreset] = useState<'all' | 'today' | 'last7' | 'this_month' | 'custom'>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [isViewLostModalOpen, setIsViewLostModalOpen] = useState(false);
 
   // Dropdown state for Transaction History (Flow, Payment Method, Date)
   const [openDropdown, setOpenDropdown] = useState<'flow' | 'payment' | 'date' | null>(null);
@@ -1117,7 +1114,6 @@ export const FinanceManagementView: React.FC = () => {
               <div className="text-2xl font-black text-emerald-400 mt-1">
                 ₱{summary.totalInflow.toLocaleString()}
               </div>
-              <p className="text-[11px] text-stone-400 mt-1">Sales & revenue receipts</p>
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500" />
             </div>
 
@@ -1126,7 +1122,6 @@ export const FinanceManagementView: React.FC = () => {
               <div className="text-2xl font-black text-rose-400 mt-1">
                 ₱{summary.totalOutflow.toLocaleString()}
               </div>
-              <p className="text-[11px] text-stone-400 mt-1">Disbursements & operating costs</p>
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-rose-500" />
             </div>
 
@@ -1141,7 +1136,6 @@ export const FinanceManagementView: React.FC = () => {
               >
                 {summary.netOperating >= 0 ? '+' : ''}₱{summary.netOperating.toLocaleString()}
               </div>
-              <p className="text-[11px] text-stone-400 mt-1">Inflow minus Outflow</p>
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500" />
             </div>
 
@@ -1149,7 +1143,7 @@ export const FinanceManagementView: React.FC = () => {
             <div className="p-5 rounded-2xl glass-panel relative overflow-hidden flex flex-col justify-between group hover:border-amber-500/40 transition">
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-stone-400">Lost</span>
+                  <span className="text-xs font-semibold uppercase text-stone-400">Lost Item</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30">
                     {lostMetrics.activeLostPieces} pcs missing
                   </span>
@@ -1157,22 +1151,6 @@ export const FinanceManagementView: React.FC = () => {
                 <div className="text-2xl font-black text-amber-400 mt-1">
                   ₱{lostMetrics.activeLostValue.toLocaleString()}
                 </div>
-                <p className="text-[11px] text-stone-400 mt-1">
-                  {lostMetrics.totalLostPieces > 0
-                    ? 'Active missing inventory valuation'
-                    : 'No unaccounted missing items'}
-                </p>
-              </div>
-
-              <div className="pt-3 mt-2 border-t border-stone-800/80">
-                <button
-                  type="button"
-                  onClick={() => setIsViewLostModalOpen(true)}
-                  className="w-full py-1.5 px-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold transition flex items-center justify-center gap-1.5 border border-amber-500/30 cursor-pointer active:scale-95"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>View Product Lost</span>
-                </button>
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500" />
@@ -1681,12 +1659,6 @@ export const FinanceManagementView: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Modal to View Lost Products and Update if Found */}
-      <ViewProductLostModal
-        isOpen={isViewLostModalOpen}
-        onClose={() => setIsViewLostModalOpen(false)}
-      />
 
       {/* Confirmation Modal to prevent accidental deletions */}
       <ConfirmDeleteModal
