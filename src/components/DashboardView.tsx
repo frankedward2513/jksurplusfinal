@@ -19,24 +19,12 @@ import {
 } from 'lucide-react';
 import { PAGE_SIZE, Pagination } from './Pagination';
 import type { ActiveTab } from './Navbar';
+import { addMissingPosInflows, getLocalDateKey, isDateWithinFilter } from '../utils/financialInflow';
 
 type DateFilterPreset = 'all' | 'today' | 'last7' | 'this_month' | 'custom';
 
 interface DashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
-}
-
-function getLocalDateKey(value: string | undefined): string | null {
-  if (!value) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
@@ -55,83 +43,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [customEnd, setCustomEnd] = useState<string>('');
   const [monthlyBreakdownPage, setMonthlyBreakdownPage] = useState(1);
 
+  const allInflowTransactions = useMemo(
+    () => addMissingPosInflows(transactions, orders).filter((transaction) => transaction.flowType === 'inflow'),
+    [transactions, orders],
+  );
+
   // Date filtering logic
   const filteredData = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-
-    const isDateInRange = (dateStr: string) => {
-      if (!dateStr) return true;
-      const target = new Date(dateStr.split('T')[0]);
-
-      if (dateFilter === 'today') {
-        return dateStr.startsWith(todayStr);
-      } else if (dateFilter === 'last7') {
-        const past7 = new Date();
-        past7.setDate(now.getDate() - 7);
-        return target >= past7 && target <= now;
-      } else if (dateFilter === 'this_month') {
-        return target.getFullYear() === now.getFullYear() && target.getMonth() === now.getMonth();
-      } else if (dateFilter === 'custom') {
-        if (customStart && target < new Date(customStart)) return false;
-        if (customEnd && target > new Date(customEnd + 'T23:59:59')) return false;
-        return true;
-      }
-      return true; // 'all'
-    };
-
-    const matchedOrders = orders.filter((o) => isDateInRange(o.createdAt));
-    const matchedExpenses = expenses.filter((e) => isDateInRange(e.date || e.createdAt));
-    const matchedTransactions = transactions.filter((t) => isDateInRange(t.date || t.createdAt));
+    const isInRange = (date: string | undefined) =>
+      isDateWithinFilter(date, dateFilter, customStart, customEnd);
+    const matchedOrders = orders.filter((order) => isInRange(order.createdAt));
+    const matchedExpenses = expenses.filter((expense) => isInRange(expense.date || expense.createdAt));
+    const matchedTransactions = transactions.filter((transaction) =>
+      isInRange(transaction.date || transaction.createdAt),
+    );
+    const matchedInflows = allInflowTransactions.filter((transaction) =>
+      isInRange(transaction.date || transaction.createdAt),
+    );
 
     return {
       orders: matchedOrders,
       expenses: matchedExpenses,
       transactions: matchedTransactions,
+      inflows: matchedInflows,
     };
-  }, [orders, expenses, transactions, dateFilter, customStart, customEnd]);
+  }, [orders, expenses, transactions, allInflowTransactions, dateFilter, customStart, customEnd]);
 
   const salesInflows = useMemo(() => {
-    const inflowOrderIds = new Set(
-      transactions
-        .filter((transaction) => transaction.flowType === 'inflow' && transaction.orderId)
-        .map((transaction) => transaction.orderId),
-    );
-
-    return [
-      ...transactions
-        .filter((transaction) => transaction.flowType === 'inflow')
-        .map((transaction) => ({
-          date: transaction.date || transaction.createdAt,
-          amount: Number(transaction.inflow) || 0,
-        })),
-      ...orders
-        .filter((order) =>
-          order.status !== 'cancelled' &&
-          (order.id.startsWith('pos_') || order.orderNumber.startsWith('POS-')) &&
-          !inflowOrderIds.has(order.id),
-        )
-        .map((order) => ({ date: order.createdAt, amount: Number(order.totalAmount) || 0 })),
-    ];
-  }, [transactions, orders]);
+    return allInflowTransactions.map((transaction) => ({
+      date: transaction.date || transaction.createdAt,
+      amount: Number(transaction.inflow) || 0,
+    }));
+  }, [allInflowTransactions]);
 
   // 6 KPIs Calculations
   const kpis = useMemo(() => {
-    // Transactions are preferred, with an order fallback for POS sales that have
-    // no matching inflow transaction (for example, older or partially synced sales).
-    const inflowTransactions = filteredData.transactions
-      .filter((t) => t.flowType === 'inflow')
-    const totalSalesFromTx = inflowTransactions
-      .reduce((sum, t) => sum + (Number(t.inflow) || 0), 0);
-
-    const transactionOrderIds = new Set(
-      inflowTransactions.map((transaction) => transaction.orderId).filter(Boolean),
+    const totalSales = filteredData.inflows.reduce(
+      (sum, transaction) => sum + (Number(transaction.inflow) || 0),
+      0,
     );
-    const totalSalesMissingFromTx = filteredData.orders
-      .filter((order) => order.status !== 'cancelled' && !transactionOrderIds.has(order.id))
-      .reduce((sum, order) => sum + (Number(order.totalAmount) || 0), 0);
-
-    const totalSales = totalSalesFromTx + totalSalesMissingFromTx;
 
     // 2. Total Expenses (Outflows from transactions; fallback to expenses list if no transactions exist)
     const totalExpensesFromTx = filteredData.transactions

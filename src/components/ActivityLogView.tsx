@@ -37,7 +37,7 @@ function getLoadErrorMessage(error: unknown): string {
 }
 
 function formatAction(action: ActivityLogEntry['action']): string {
-  if (action === 'SALE') return 'Sale';
+  if (action === 'SALE') return 'POS Sale';
   if (action === 'INSERT') return 'Added';
   if (action === 'UPDATE') return 'Edited';
   return 'Deleted';
@@ -144,7 +144,7 @@ export const ActivityLogView: React.FC = () => {
             <div className="min-w-0">
               <h1 className="text-2xl font-black text-white">Status Log</h1>
               <p className="mt-1 text-sm text-stone-400">
-                View who added, edited, or deleted records and when those changes happened.
+                View who added, edited, or deleted records, and identify sales completed through the POS.
               </p>
             </div>
           </div>

@@ -2,23 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { Calendar, Filter, ReceiptText } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import type { Order } from '../types';
+import { addMissingPosInflows, isDateWithinFilter } from '../utils/financialInflow';
 import { PAGE_SIZE, Pagination } from './Pagination';
 import { ReceiptModal } from './ReceiptModal';
 
 type ReceiptDateFilter = 'all' | 'today' | 'last7' | 'this_month' | 'custom';
 
-function getLocalDateKey(value: string | undefined): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 export const ReceiptsView: React.FC = () => {
-  const { currentUser, orders, isDarkMode } = useStore();
+  const { currentUser, orders, transactions, isDarkMode } = useStore();
   const [dateFilter, setDateFilter] = useState<ReceiptDateFilter>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -26,31 +17,23 @@ export const ReceiptsView: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const receipts = useMemo(() => {
-    const now = new Date();
-    const todayKey = getLocalDateKey(now.toISOString());
-    const startOfLast7Days = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-    const last7StartKey = getLocalDateKey(startOfLast7Days.toISOString());
-    const currentMonthKey = todayKey?.slice(0, 7);
-
     return orders
       .filter((order) => {
         if (!order.id.startsWith('pos_') && !order.orderNumber.startsWith('POS-')) return false;
-        if (dateFilter === 'all') return true;
-
-        const orderDateKey = getLocalDateKey(order.createdAt);
-        if (!orderDateKey) return false;
-        if (dateFilter === 'today') return orderDateKey === todayKey;
-        if (dateFilter === 'last7') {
-          return !!last7StartKey && orderDateKey >= last7StartKey && orderDateKey <= (todayKey || '');
-        }
-        if (dateFilter === 'this_month') return orderDateKey.startsWith(currentMonthKey || '');
-        if (customStart && orderDateKey < customStart) return false;
-        if (customEnd && orderDateKey > customEnd) return false;
-        return true;
+        return isDateWithinFilter(order.createdAt, dateFilter, customStart, customEnd);
       })
       .slice()
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [orders, dateFilter, customStart, customEnd]);
+  const inflowTransactions = useMemo(
+    () =>
+      addMissingPosInflows(transactions, orders).filter(
+        (transaction) =>
+          transaction.flowType === 'inflow' &&
+          isDateWithinFilter(transaction.date || transaction.createdAt, dateFilter, customStart, customEnd),
+      ),
+    [transactions, orders, dateFilter, customStart, customEnd],
+  );
 
   const handleDateFilterChange = (filter: ReceiptDateFilter) => {
     setDateFilter(filter);
@@ -60,6 +43,23 @@ export const ReceiptsView: React.FC = () => {
   const visibleReceipts = receipts.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE,
+  );
+  const paymentTotals = useMemo(
+    () =>
+      inflowTransactions.reduce(
+        (totals, order) => {
+          if (order.paymentMethod === 'cash' || order.paymentMethod === 'gcash') {
+            totals[order.paymentMethod] += Number(order.inflow) || 0;
+          }
+          return totals;
+        },
+        { cash: 0, gcash: 0 },
+      ),
+    [inflowTransactions],
+  );
+  const totalInflow = useMemo(
+    () => inflowTransactions.reduce((total, transaction) => total + (Number(transaction.inflow) || 0), 0),
+    [inflowTransactions],
   );
 
   if (currentUser.role !== 'owner') {
@@ -78,6 +78,26 @@ export const ReceiptsView: React.FC = () => {
             <ReceiptText className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-black text-white">Receipts</h1>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2">
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+              Cash total
+            </span>
+            <span className="text-sm font-bold text-white">₱{paymentTotals.cash.toLocaleString()}</span>
+          </div>
+          <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-2">
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-sky-300">
+              GCash total
+            </span>
+            <span className="text-sm font-bold text-white">₱{paymentTotals.gcash.toLocaleString()}</span>
+          </div>
+          <div className="rounded-xl border border-orange-500/25 bg-orange-500/10 px-3 py-2">
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-orange-300">
+              Total inflow
+            </span>
+            <span className="text-sm font-bold text-white">₱{totalInflow.toLocaleString()}</span>
+          </div>
         </div>
         <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
             <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-orange-500/20 bg-stone-950/70 p-1 text-xs">

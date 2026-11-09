@@ -304,12 +304,12 @@ export const AiChatbotView: React.FC = () => {
   };
 
   const quickPrompts = [
-    '💡 What are your top recommendations to reduce expenses?',
-    '⚠️ Which products need urgent restocking and reordering?',
-    '🏷️ What bale quantities and purchase costs are recorded?',
-    '💰 What is my highest expense category and how can I cut it?',
-    '📦 How can I improve inventory turnover and control expenses?',
-    '📊 Show my inventory and expense summary',
+    'What are your top recommendations to reduce expenses?',
+    'Which products need urgent restocking and reordering?',
+    'What bale quantities and purchase costs are recorded?',
+    'What is my highest expense category and how can I cut it?',
+    'How can I improve inventory turnover and control expenses?',
+    'Show my inventory and expense summary',
   ];
 
   return (

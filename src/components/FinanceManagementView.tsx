@@ -25,6 +25,7 @@ import {
 import { ViewProductLostModal } from './ViewProductLostModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { PAGE_SIZE, Pagination } from './Pagination';
+import { addMissingPosInflows, isDateWithinFilter } from '../utils/financialInflow';
 
 type FinanceTransaction = Transaction & { isOrderFallback?: boolean };
 
@@ -275,54 +276,15 @@ export const FinanceManagementView: React.FC = () => {
   };
 
   const financeTransactions = useMemo<FinanceTransaction[]>(() => {
-    const posInflows = transactions.filter((transaction) => transaction.flowType === 'inflow');
-    const transactionsByOrderId = new Set<string>();
-    posInflows.forEach((transaction) => {
-      if (transaction.orderId) {
-        transactionsByOrderId.add(transaction.orderId);
-        return;
-      }
-      const linkedOrder = orders.find((order) =>
-        transaction.description?.includes(order.orderNumber),
-      );
-      if (linkedOrder) transactionsByOrderId.add(linkedOrder.id);
-    });
-    const missingPosInflows = orders
-      .filter((order) =>
-        order.status !== 'cancelled' &&
-        (order.id.startsWith('pos_') || order.orderNumber.startsWith('POS-')) &&
-        !transactionsByOrderId.has(order.id),
-      )
-      .map((order): FinanceTransaction => {
-        const createdAt = order.createdAt;
-        const saleDate = new Date(createdAt);
-        const date = Number.isNaN(saleDate.getTime())
-          ? ''
-          : `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
-        return {
-          id: `order_fallback_${order.id}`,
-          date,
-          flowType: 'inflow',
-          category: 'POS Sales',
-          account: 'Store Counter Sales',
-          description: `POS counter sale #${order.orderNumber} (${order.customerName || 'Walk-in'})`,
-          paymentMethod: order.paymentMethod || 'cash',
-          inflow: Number(order.totalAmount) || 0,
-          outflow: 0,
-          orderId: order.id,
-          createdAt,
-          isOrderFallback: true,
-        };
-      });
-
-    return [...transactions, ...missingPosInflows];
+    return addMissingPosInflows(transactions, orders).map((transaction) =>
+      transaction.id.startsWith('order_fallback_')
+        ? { ...transaction, isOrderFallback: true }
+        : transaction,
+    );
   }, [transactions, orders]);
 
   // Filtered transactions sorted current date to past date (newest on top)
   const filteredTransactions = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-
     const filtered = financeTransactions.filter((tx) => {
       // Flow type filter
       if (flowFilter !== 'all' && tx.flowType !== flowFilter) return false;
@@ -374,23 +336,7 @@ export const FinanceManagementView: React.FC = () => {
         if (!match) return false;
       }
 
-      // Date filter
-      const txDateStr = tx.date || tx.createdAt.split('T')[0];
-      if (datePreset === 'today') {
-        if (!txDateStr.startsWith(todayStr)) return false;
-      } else if (datePreset === 'last7') {
-        const past7 = new Date();
-        past7.setDate(now.getDate() - 7);
-        if (new Date(txDateStr) < past7) return false;
-      } else if (datePreset === 'this_month') {
-        const d = new Date(txDateStr);
-        if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) return false;
-      } else if (datePreset === 'custom') {
-        if (customStart && txDateStr < customStart) return false;
-        if (customEnd && txDateStr > customEnd) return false;
-      }
-
-      return true;
+      return isDateWithinFilter(tx.date || tx.createdAt, datePreset, customStart, customEnd);
     });
 
     // Sort descending: Current date down to past date (strictly newest on top)
