@@ -862,29 +862,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        <div className="p-5 sm:p-6 rounded-2xl glass-panel space-y-4">
+        <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-orange-500/20 pb-3">
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <Clock3 className="w-5 h-5 text-orange-400" />
                 Slow-moving products
               </h2>
+              <p className="mt-1 text-xs text-stone-400">Products ranked by time since their last sale.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <label htmlFor="slow-moving-category" className="sr-only">Filter by category</label>
               <select
                 id="slow-moving-category"
                 value={slowMovingCategory}
                 onChange={(event) => setSlowMovingCategory(event.target.value)}
-                className="rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-xs font-semibold text-stone-200"
+                className="rounded-xl border border-orange-500/25 bg-stone-950/80 px-3 py-2.5 text-xs font-semibold text-stone-200 transition focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
               >
                 <option value="all">All categories</option>
                 {slowMovingCategories.map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
               </select>
-              <span className="whitespace-nowrap rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold text-orange-300">
-                {visibleSlowMovingProductsByCategory.reduce((total, [, items]) => total + items.length, 0)} products
+              <span className="whitespace-nowrap rounded-xl border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-xs font-semibold text-orange-300">
+                {visibleSlowMovingProductsByCategory.reduce((total, [, items]) => total + items.length, 0)} items found
               </span>
             </div>
           </div>
@@ -894,34 +895,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             <div className="space-y-5">
               {visibleSlowMovingProductsByCategory.map(([category, categoryProducts]) => (
                 <div key={category} className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-stone-700/60 pb-2">
-                    <h3 className="text-sm font-bold text-stone-200">{category}</h3>
-                    <span className="text-[11px] text-stone-500">Top {categoryProducts.length} slow-moving</span>
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-orange-500/15 bg-stone-950/50 px-3.5 py-2.5">
+                    <h3 className="text-sm font-bold text-white">{category}</h3>
+                    <span className="whitespace-nowrap rounded-full bg-stone-800/80 px-2.5 py-1 text-[10px] font-semibold text-stone-400">
+                      {categoryProducts.length} {categoryProducts.length === 1 ? 'product' : 'products'}
+                    </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-                    {categoryProducts.map((product) => (
-                      <div key={product.id} className="min-w-0 overflow-hidden rounded-xl border border-stone-700/60 bg-stone-950/25">
-                        <div className="relative h-32 bg-stone-900/60 flex items-center justify-center overflow-hidden">
-                          {product.imageUrl ? (
-                            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
-                          ) : (
-                            <Boxes className="w-9 h-9 text-stone-600" />
-                          )}
-                        </div>
-                        <div className="p-3">
-                          <p className="truncate text-sm font-semibold text-stone-100" title={product.name}>{product.name}</p>
-                          <p className="mt-1 truncate text-[11px] text-stone-400" title={product.barcode || product.id}>
-                            Product Code: {product.barcode || product.id}
-                          </p>
-                          <div className="mt-3 flex items-center justify-between gap-2 border-t border-stone-700/60 pt-2">
-                            <span className="text-[10px] text-stone-400">Days not sold</span>
-                            <span className="shrink-0 text-xs font-bold text-orange-300">
-                              {product.idleDays} {product.idleDays === 1 ? 'day' : 'days'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto rounded-2xl border border-orange-500/15 bg-stone-950/30">
+                    <table className="w-full min-w-[36rem] border-collapse text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-orange-500/20 text-[10px] uppercase tracking-wider text-stone-400">
+                          <th scope="col" className="px-4 py-3 font-semibold">Image</th>
+                          <th scope="col" className="px-4 py-3 font-semibold">Product Name</th>
+                          <th scope="col" className="px-4 py-3 font-semibold">Product Code</th>
+                          <th scope="col" className="px-4 py-3 text-right font-semibold">Days not sold</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-800/80">
+                        {categoryProducts.map((product) => (
+                          <tr key={product.id} className="text-stone-200 transition-colors hover:bg-stone-800/40">
+                            <td className="px-4 py-2.5">
+                              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-stone-800 bg-stone-900">
+                                {product.imageUrl ? (
+                                  <img
+                                    src={product.imageUrl}
+                                    alt={product.name}
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center gap-0.5 text-stone-500">
+                                    <Boxes className="h-4 w-4" aria-hidden="true" />
+                                    <span className="text-[8px]">No Pic</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="max-w-xs truncate px-4 py-3 font-sans font-bold text-white" title={product.name}>
+                              {product.name}
+                            </td>
+                            <td className="max-w-xs truncate px-4 py-3 font-mono text-[11px] text-orange-300" title={product.barcode || product.id}>
+                              {product.barcode || product.id}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-right">
+                              <span className="inline-flex min-w-20 justify-center rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-1 font-mono font-bold text-orange-300">
+                                {product.idleDays} {product.idleDays === 1 ? 'day' : 'days'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               ))}

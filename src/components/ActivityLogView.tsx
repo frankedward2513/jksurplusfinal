@@ -8,21 +8,9 @@ interface ActivityLogEntry {
   id: number;
   table_name: string;
   record_id: string | null;
-  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'SALE';
-  actor_name: string;
-  actor_email: string | null;
+  action: 'INSERT' | 'UPDATE' | 'DELETE' | 'SALE' | 'LOST';
+  actor_role: 'admin' | 'staff' | null;
   occurred_at: string;
-}
-
-function getActorRole(email: string | null): 'admin' | 'staff' | null {
-  switch (email?.trim().toLowerCase()) {
-    case 'exinadmin@gmail.com':
-      return 'admin';
-    case 'exinstaff@gmail.com':
-      return 'staff';
-    default:
-      return null;
-  }
 }
 
 function getLoadErrorMessage(error: unknown): string {
@@ -37,10 +25,41 @@ function getLoadErrorMessage(error: unknown): string {
 }
 
 function formatAction(action: ActivityLogEntry['action']): string {
-  if (action === 'SALE') return 'POS Sale';
-  if (action === 'INSERT') return 'Added';
-  if (action === 'UPDATE') return 'Edited';
-  return 'Deleted';
+  switch (action) {
+    case 'SALE':
+      return 'Sales';
+    case 'LOST':
+      return 'Lost';
+    case 'INSERT':
+      return 'Add';
+    case 'UPDATE':
+      return 'Edit';
+    case 'DELETE':
+      return 'Delete';
+  }
+}
+
+function formatRecord(entry: ActivityLogEntry): string {
+  if (entry.action === 'LOST') return 'Log Lost Item';
+  if (entry.action === 'SALE') return 'POS Sale';
+
+  switch (entry.table_name) {
+    case 'suppliers':
+      return 'Supplier';
+    case 'categories':
+      return 'Category';
+    case 'bales':
+      return 'Bale';
+    case 'products':
+      return 'Product';
+    case 'item_logs':
+      return 'Inventory Log';
+    case 'orders':
+    case 'transactions':
+      return 'POS Sale';
+    default:
+      return entry.table_name.replaceAll('_', ' ');
+  }
 }
 
 export const ActivityLogView: React.FC = () => {
@@ -60,7 +79,7 @@ export const ActivityLogView: React.FC = () => {
     try {
       let query = supabase
         .from('audit_logs')
-        .select('id, table_name, record_id, action, actor_name, actor_email, occurred_at', {
+        .select('id, table_name, record_id, action, actor_role, occurred_at', {
           count: 'exact',
         });
 
@@ -144,7 +163,7 @@ export const ActivityLogView: React.FC = () => {
             <div className="min-w-0">
               <h1 className="text-2xl font-black text-white">Status Log</h1>
               <p className="mt-1 text-sm text-stone-400">
-                View who added, edited, or deleted records, and identify sales completed through the POS.
+                Review POS sales and inventory changes by admin or staff, with the record type and ID.
               </p>
             </div>
           </div>
@@ -255,16 +274,10 @@ export const ActivityLogView: React.FC = () => {
                 {entries.map((entry) => (
                   <tr key={entry.id} className="text-stone-300 hover:bg-stone-800/40 transition">
                     <td className="py-3.5 px-4">
-                      {entry.actor_name.trim().toLowerCase() !== entry.actor_email?.trim().toLowerCase() && (
-                        <span className="block font-semibold text-white">{entry.actor_name}</span>
-                      )}
-                      {getActorRole(entry.actor_email) && (
+                      {entry.actor_role && (
                         <span className="mb-1 inline-block rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 font-sans text-[9px] font-bold uppercase tracking-wider text-orange-300">
-                          {getActorRole(entry.actor_email)}
+                          {entry.actor_role}
                         </span>
-                      )}
-                      {entry.actor_email && (
-                        <span className="mt-1 block text-[11px] text-stone-500">{entry.actor_email}</span>
                       )}
                     </td>
                     <td className="py-3.5 px-4 font-sans">
@@ -272,6 +285,8 @@ export const ActivityLogView: React.FC = () => {
                         className={`inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                           entry.action === 'SALE'
                             ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
+                            : entry.action === 'LOST'
+                              ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
                             : entry.action === 'INSERT'
                               ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
                             : entry.action === 'UPDATE'
@@ -283,8 +298,8 @@ export const ActivityLogView: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="block font-sans font-medium capitalize text-stone-200">
-                        {entry.table_name.replaceAll('_', ' ')}
+                      <span className="block font-sans font-medium text-stone-200">
+                        {formatRecord(entry)}
                       </span>
                       {entry.record_id && (
                         <span className="mt-1 block text-[11px] text-stone-500">{entry.record_id}</span>

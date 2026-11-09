@@ -65,7 +65,6 @@ export const FinanceManagementView: React.FC = () => {
   const [expenseAccountSearch, setExpenseAccountSearch] = useState('');
   const [transactionPage, setTransactionPage] = useState(1);
   const [isAccountFormOpen, setIsAccountFormOpen] = useState(false);
-  const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false);
 
   // Deletion confirmation state to prevent accidental deletes
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -154,6 +153,17 @@ export const FinanceManagementView: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'gcash' | 'bank_transfer' | 'card'>('gcash');
   const [receiptPhoto, setReceiptPhoto] = useState('');
   const [expenseDesc, setExpenseDesc] = useState('');
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+
+  const resetExpenseForm = () => {
+    setSelectedAccountId('');
+    setDisbursementAmount('');
+    setDisbursementDate(new Date().toISOString().split('T')[0]);
+    setPaymentMethod('gcash');
+    setReceiptPhoto('');
+    setExpenseDesc('');
+    if (receiptInputRef.current) receiptInputRef.current.value = '';
+  };
 
   const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -186,11 +196,8 @@ export const FinanceManagementView: React.FC = () => {
       description: expenseDesc || `Expense disbursement for ${accName}`,
     });
 
-    // Reset Form & Switch to History to verify
-    setDisbursementAmount('');
-    setExpenseDesc('');
-    setReceiptPhoto('');
-    setIsExpenseFormOpen(false);
+    // Reset the form and switch to history to verify the saved expense.
+    resetExpenseForm();
     setActiveTab('history');
   };
 
@@ -959,7 +966,6 @@ export const FinanceManagementView: React.FC = () => {
 
       {/* ===================== TAB 2: RECORD EXPENSE ===================== */}
       {activeTab === 'record' && (
-        isExpenseFormOpen ? (
         <div className="p-6 rounded-3xl glass-panel space-y-4 max-w-2xl mx-auto">
           <div className="pb-3 border-b border-orange-500/20">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -1055,6 +1061,7 @@ export const FinanceManagementView: React.FC = () => {
                     type="file"
                     accept="image/*"
                     onChange={handleReceiptUpload}
+                    ref={receiptInputRef}
                     className="hidden"
                   />
                 </label>
@@ -1083,10 +1090,10 @@ export const FinanceManagementView: React.FC = () => {
             <div className="flex flex-col-reverse sm:flex-row gap-3">
               <button
                 type="button"
-                onClick={() => setIsExpenseFormOpen(false)}
+                onClick={resetExpenseForm}
                 className="w-full sm:w-auto py-3.5 px-6 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold text-sm transition cursor-pointer"
               >
-                Cancel
+                Reset
               </button>
               <button
                 type="submit"
@@ -1098,23 +1105,6 @@ export const FinanceManagementView: React.FC = () => {
             </div>
           </form>
         </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAccountId('');
-              setDisbursementAmount('');
-              setDisbursementDate(new Date().toISOString().split('T')[0]);
-              setPaymentMethod('gcash');
-              setReceiptPhoto('');
-              setExpenseDesc('');
-              setIsExpenseFormOpen(true);
-            }}
-            className="w-full max-w-2xl mx-auto block p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
-          >
-            + Record Expense
-          </button>
-        )
       )}
 
       {/* ===================== TAB 3: TRANSACTION HISTORY ===================== */}
@@ -1190,8 +1180,8 @@ export const FinanceManagementView: React.FC = () => {
           </div>
 
           {/* Filters Bar & Export Button */}
-          <div className="p-5 rounded-3xl glass-panel space-y-4 relative z-30">
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="p-5 rounded-3xl glass-panel space-y-3 relative z-30">
+            <div className="flex items-stretch">
               {/* Search input */}
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -1212,24 +1202,13 @@ export const FinanceManagementView: React.FC = () => {
                   </button>
                 )}
               </div>
-
-              {/* Export to Excel button */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleExportExcel}
-                  className="py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 hover:text-white border border-orange-500/30 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer shrink-0"
-                >
-                  <Download className="w-4 h-4 text-orange-400" />
-                  <span>Export CSV</span>
-                </button>
-              </div>
             </div>
 
-            {/* Filter Controls Row: Flow, Payment Method, and Date */}
             <div
               ref={dropdownRef}
-              className="flex flex-wrap items-center gap-2.5 text-xs pt-2 border-t border-stone-800/80 relative z-30"
+              className="flex flex-wrap items-center justify-between gap-2.5 text-xs relative z-30"
             >
+              <div className="flex flex-wrap items-center gap-2">
               {/* Flow dropdown button */}
               <div className="relative">
                 <button
@@ -1510,6 +1489,15 @@ export const FinanceManagementView: React.FC = () => {
                   <span>Reset</span>
                 </button>
               )}
+              </div>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="ml-auto py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 hover:text-white border border-orange-500/30 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer shrink-0"
+              >
+                <Download className="w-4 h-4 text-orange-400" />
+                <span>Export CSV</span>
+              </button>
             </div>
           </div>
 

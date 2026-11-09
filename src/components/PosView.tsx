@@ -207,19 +207,28 @@ export const PosView: React.FC = () => {
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in pb-16">
       {/* LEFT: Direct Code Entry & Quick Terminal Tools (5 cols) */}
       <div className="lg:col-span-5 space-y-5">
+        {/* Quick Cashier Guide */}
+        <div className="p-5 rounded-3xl glass-panel space-y-3 text-xs text-stone-400 border border-stone-800">
+          <h4 className="font-bold text-white flex items-center gap-2 text-xs uppercase tracking-wider">
+            <CheckCircle className="w-4 h-4 text-orange-400" />
+            <span>Fast POS Checkout Guide</span>
+          </h4>
+          <ul className="space-y-1.5 list-disc list-inside text-[11px] leading-relaxed">
+            <li>Type any product barcode number or product name and press <strong>Enter</strong>.</li>
+            <li>Adjust quantities or remove items directly in the cart bag.</li>
+            <li>Choose <strong>Cash</strong> or <strong>GCash</strong>, enter tendered amount, and change will auto-compute.</li>
+            <li>Click <strong>Confirm Transaction</strong> to deduct stock and generate an official receipt.</li>
+          </ul>
+        </div>
+
         {/* Type-in Code Input Box (NO NEED FOR SCANNER) */}
         <div className="p-6 rounded-3xl glass-panel space-y-4 border border-orange-500/30">
           <div className="flex items-center justify-between pb-2 border-b border-orange-500/20">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <Barcode className="w-5 h-5 text-orange-400" />
-              <span>Type-in Product Code (Instant Add)</span>
+              <span>Type-in Product Code</span>
             </h2>
-            <span className="text-[11px] text-stone-400 font-mono">Press Enter</span>
           </div>
-
-          <p className="text-xs text-stone-400">
-            Type any barcode (e.g. EX-123456) or product name and press <strong>Enter</strong> to instantly add to the bag.
-          </p>
 
           <form onSubmit={handleCodeSubmit} className="space-y-3">
             <div className="flex gap-2">
@@ -306,19 +315,6 @@ export const PosView: React.FC = () => {
           )}
         </div>
 
-        {/* Quick Cashier Guide */}
-        <div className="p-5 rounded-3xl glass-panel space-y-3 text-xs text-stone-400 border border-stone-800">
-          <h4 className="font-bold text-white flex items-center gap-2 text-xs uppercase tracking-wider">
-            <CheckCircle className="w-4 h-4 text-orange-400" />
-            <span>Fast POS Checkout Guide</span>
-          </h4>
-          <ul className="space-y-1.5 list-disc list-inside text-[11px] leading-relaxed">
-            <li>Type any product barcode number or product name and press <strong>Enter</strong>.</li>
-            <li>Adjust quantities or remove items directly in the cart bag.</li>
-            <li>Choose <strong>Cash</strong> or <strong>GCash</strong>, enter tendered amount, and change will auto-compute.</li>
-            <li>Click <strong>Confirm Transaction</strong> to deduct stock and generate an official receipt.</li>
-          </ul>
-        </div>
       </div>
 
       {/* RIGHT: Current Cart Bag & Register Terminal (7 cols) */}
@@ -348,7 +344,7 @@ export const PosView: React.FC = () => {
               className="w-full rounded-xl border border-orange-500/20 bg-stone-950 px-3 py-2 text-xs text-stone-100 focus:border-orange-500 focus:outline-none"
             />
           </div>
-
+ 
           {/* Customer Name */}
           <div className="text-xs">
             <label className="block font-medium text-stone-300 mb-1">
@@ -369,7 +365,6 @@ export const PosView: React.FC = () => {
               <div className="text-center py-12 text-stone-400 text-xs space-y-2">
                 <ShoppingBag className="w-8 h-8 mx-auto opacity-30 text-orange-400" />
                 <p className="font-semibold text-stone-300">Bag is currently empty.</p>
-                <p>Type product code or name on the left and press Enter.</p>
               </div>
             ) : (
               posCart.map(({ product, quantity }) => (

@@ -3,7 +3,7 @@ create table if not exists public.audit_logs (
   table_name text not null,
   record_id text,
   action text not null constraint audit_logs_action_check
-    check (action in ('INSERT', 'UPDATE', 'DELETE', 'SALE')),
+    check (action in ('INSERT', 'UPDATE', 'DELETE', 'SALE', 'LOST')),
   actor_id uuid,
   actor_name text not null,
   actor_email text,
@@ -15,7 +15,7 @@ alter table public.audit_logs
 
 alter table public.audit_logs
   add constraint audit_logs_action_check
-  check (action in ('INSERT', 'UPDATE', 'DELETE', 'SALE'));
+  check (action in ('INSERT', 'UPDATE', 'DELETE', 'SALE', 'LOST'));
 
 alter table public.audit_logs
   add column if not exists actor_role text check (actor_role in ('admin', 'staff'));
@@ -92,6 +92,11 @@ begin
     )
   ) then
     log_action := 'SALE';
+  elsif tg_op = 'INSERT'
+    and tg_table_name = 'item_logs'
+    and lower(coalesce(new_row ->> 'type', '')) = 'lost'
+  then
+    log_action := 'LOST';
   end if;
 
   insert into public.audit_logs (

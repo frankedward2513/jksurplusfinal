@@ -977,12 +977,19 @@ export const InventoryManagementView: React.FC = () => {
                 {/* Category Accent Color */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Category Color</label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={categoryColor}
                       onChange={(e) => setCategoryColor(e.target.value)}
                       className="w-10 h-10 rounded-xl cursor-pointer bg-transparent border-0"
+                    />
+                    <input
+                      type="text"
+                      value={categoryColor}
+                      onChange={(e) => setCategoryColor(e.target.value)}
+                      aria-label="Category color hex value"
+                      className="flex-1 px-3 py-2 rounded-xl bg-stone-950 border border-orange-500/20 text-stone-100 font-mono text-xs focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1631,7 +1638,7 @@ export const InventoryManagementView: React.FC = () => {
                   }}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               )}
             </div>
@@ -1836,7 +1843,7 @@ export const InventoryManagementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsLogModalOpen(true)}
-                  className="py-2.5 px-3.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-purple-400 border border-purple-500/30 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm shrink-0"
+                  className="py-2.5 px-3.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 border border-orange-500/30 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm shrink-0"
                 >
                   <HelpCircle className="w-3.5 h-3.5" />
                   <span>Log Lost Item</span>

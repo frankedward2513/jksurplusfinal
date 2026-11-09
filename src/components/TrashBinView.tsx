@@ -88,7 +88,7 @@ export const TrashBinView: React.FC = () => {
           <div>
             <h1 className="text-2xl font-black text-white">exBIN</h1>
             <p className="mt-1 text-sm text-stone-400">
-              Items move to the archive after 30 days. 
+              Items can be restored for 30 days, then they are permanently deleted.
             </p>
           </div>
         </div>
@@ -146,7 +146,7 @@ export const TrashBinView: React.FC = () => {
           <div className="p-12 text-center">
             <Trash2 className="mx-auto h-10 w-10 text-stone-600" />
             <h2 className="mt-4 font-bold text-stone-200">exBIN is empty</h2>
-            <p className="mt-1 text-sm text-stone-500">Deleted records will appear here for 30 days before moving to the archive.</p>
+            <p className="mt-1 text-sm text-stone-500">Deleted records remain here for 30 days and are then permanently deleted.</p>
           </div>
         ) : (
           <ul className="divide-y divide-stone-800/80">
