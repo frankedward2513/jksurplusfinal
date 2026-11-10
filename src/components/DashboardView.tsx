@@ -869,7 +869,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 <Clock3 className="w-5 h-5 text-orange-400" />
                 Slow-moving products
               </h2>
-              <p className="mt-1 text-xs text-stone-400">Products ranked by time since their last sale.</p>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
               <label htmlFor="slow-moving-category" className="sr-only">Filter by category</label>
