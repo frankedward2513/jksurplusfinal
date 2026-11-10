@@ -118,9 +118,6 @@ export const LogItemStatusModal: React.FC<LogItemStatusModalProps> = ({
             <h3 className="text-lg sm:text-xl font-black text-white">
               Log Lost Item
             </h3>
-            <p className="text-xs text-stone-400">
-              Record missing or lost inventory to deduct stock and maintain accurate records
-            </p>
           </div>
           <button
             type="button"

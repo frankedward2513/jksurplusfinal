@@ -56,13 +56,13 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // If any logs are already marked as found or have 0 qty, automatically remove them from lost records
+  // Keep resolved found logs in history, but remove stale zero-quantity entries from the active lost list.
   useEffect(() => {
-    const foundLogs = itemStatusLogs.filter(
-      (log) => log.type === 'lost' && (log.status === 'found' || log.quantity <= 0)
+    const staleLogs = itemStatusLogs.filter(
+      (log) => log.type === 'lost' && log.quantity <= 0 && log.status !== 'found'
     );
-    if (foundLogs.length > 0) {
-      foundLogs.forEach((l) => deleteItemStatusLog(l.id, false).catch(console.warn));
+    if (staleLogs.length > 0) {
+      staleLogs.forEach((l) => deleteItemStatusLog(l.id, false).catch(console.warn));
     }
   }, [itemStatusLogs, deleteItemStatusLog]);
 
@@ -150,15 +150,25 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
       const isFullyFound = foundQty >= selectedLogForUpdate.quantity;
 
       if (isFullyFound) {
-        // Fully found: Restock to inventory if requested and remove completely from lost!
+        // Fully found: restock inventory and mark the lost entry as resolved so it can stay in history.
         if (restoreStock && prod) {
           const restoredQty = (prod.availableQuantity || 0) + foundQty;
           await updateProduct(prod.id, { availableQuantity: restoredQty }, false);
         }
-        await deleteItemStatusLog(selectedLogForUpdate.id, false);
+        await updateItemStatusLog(
+          selectedLogForUpdate.id,
+          {
+            status: 'found',
+            foundQuantity: foundQty,
+            foundDate,
+            foundNotes: foundNotes || selectedLogForUpdate.foundNotes || '',
+            notes: `${selectedLogForUpdate.notes ? selectedLogForUpdate.notes + ' | ' : ''}Found ${foundQty} pcs on ${foundDate}${foundNotes ? ': ' + foundNotes : ''}`,
+          },
+          { notify: false }
+        );
 
         setSuccessMessage(
-          `"${selectedLogForUpdate.productName}" recovered! Restored ${foundQty} pc(s) to inventory and removed from lost list.`
+          `"${selectedLogForUpdate.productName}" marked as found! Restored ${foundQty} pc(s) to inventory and recorded the recovery.`
         );
       } else {
         // Partial found: Restock found pieces, deduct from lost quantity
@@ -179,7 +189,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
 
       showFormAlert(
         isFullyFound
-          ? `"${selectedLogForUpdate.productName}" recovered successfully and inventory updated.`
+          ? `"${selectedLogForUpdate.productName}" marked as found successfully and inventory updated.`
           : `Inventory updated successfully. ${foundQty} piece(s) of "${selectedLogForUpdate.productName}" recovered.`,
         'success',
       );
@@ -398,7 +408,7 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenUpdate(log)}
-                          className="py-1.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 text-xs font-bold transition flex items-center gap-1.5 shadow-sm shadow-emerald-500/20 cursor-pointer active:scale-95"
+                          className="py-1.5 px-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm shadow-emerald-500/10 cursor-pointer active:scale-95"
                           title="Restock to inventory and remove from lost list"
                         >
                           <CheckCircle className="w-3.5 h-3.5" />
@@ -439,15 +449,15 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
         {/* Sub-modal: Update If Found Dialog */}
         {selectedLogForUpdate && (
           <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-            <div className="relative w-full max-w-lg bg-stone-900 border border-emerald-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl text-stone-100 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-stone-800">
-                <div className="flex items-center gap-2.5">
-                  <span className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+            <div className="relative w-full max-w-xl rounded-3xl border border-orange-500/30 bg-stone-900/95 p-5 sm:p-6 shadow-2xl text-stone-100">
+              <div className="mb-4 flex items-start justify-between gap-3 border-b border-orange-500/20 pb-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-orange-500/30 bg-orange-500/10 text-orange-400">
                     <CheckCircle className="w-5 h-5" />
-                  </span>
+                  </div>
                   <div>
-                    <h4 className="text-sm font-bold text-white">Item Found Resolution</h4>
-                    <p className="text-xs text-stone-400">
+                    <h4 className="text-xl font-black text-white">Item Found Resolution</h4>
+                    <p className="mt-1 text-sm text-stone-400">
                       Recover "{selectedLogForUpdate.productName}"
                     </p>
                   </div>
@@ -455,113 +465,122 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedLogForUpdate(null)}
-                  className="p-1 text-stone-400 hover:text-white rounded-lg hover:bg-stone-800"
+                  className="p-2 text-stone-400 hover:text-white rounded-xl hover:bg-orange-500/10 transition"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
-                <p>
-                  Found items will be <strong>restocked to active inventory</strong> and{' '}
-                  <strong>removed from the lost list</strong>.
-                </p>
-              </div>
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 px-4 py-3">
+                  <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                    Cash total
+                  </span>
+                  <span className="mt-1 block font-mono text-2xl font-black text-white">
+                    ₱{((selectedLogForUpdate.quantity || 0) * (products.find((p) => p.id === selectedLogForUpdate.productId)?.sellingPrice || 0)).toLocaleString()}
+                  </span>
+                </div>
 
-              <form onSubmit={handleConfirmFound} className="space-y-4">
-                {/* Quantity Found */}
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Quantity Found (Max: {selectedLogForUpdate.quantity} pcs)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={selectedLogForUpdate.quantity}
-                    step="1"
-                    value={foundQty}
-                    onChange={(e) => setFoundQty(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-sm text-white focus:outline-none focus:border-emerald-500"
-                    required
-                  />
-                  <p className="text-[11px] text-stone-400 mt-1">
-                    Original missing quantity: {selectedLogForUpdate.quantity} pcs
+                <div className="rounded-2xl border border-orange-500/20 bg-stone-950/70 px-4 py-3 text-sm text-stone-300">
+                  <p>
+                    Found items will be <span className="font-bold text-orange-300">restocked to active inventory</span> and{' '}
+                    <span className="font-bold text-orange-300">removed from the lost list</span>.
                   </p>
                 </div>
 
-                {/* Date Found */}
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Date Recovered / Found
-                  </label>
-                  <input
-                    type="date"
-                    value={foundDate}
-                    onChange={(e) => setFoundDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-sm text-white focus:outline-none focus:border-emerald-500"
-                    required
-                  />
-                </div>
+                <form onSubmit={handleConfirmFound} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-stone-300">
+                        Quantity Found (Max: {selectedLogForUpdate.quantity} pcs)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={selectedLogForUpdate.quantity}
+                        step="1"
+                        value={foundQty}
+                        onChange={(e) => setFoundQty(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full rounded-xl border border-orange-500/25 bg-stone-950 px-3 py-2.5 text-base font-mono text-white focus:border-orange-500 focus:outline-none"
+                        required
+                      />
+                      <p className="text-[11px] text-stone-400">
+                        Original missing quantity: {selectedLogForUpdate.quantity} pcs
+                      </p>
+                    </div>
 
-                {/* Restock Checkbox */}
-                <div className="p-3 rounded-xl bg-stone-950/80 border border-stone-800 flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    id="restoreStock"
-                    checked={restoreStock}
-                    onChange={(e) => setRestoreStock(e.target.checked)}
-                    className="mt-1 w-4 h-4 rounded border-stone-700 text-emerald-500 focus:ring-emerald-400 focus:ring-offset-stone-900 accent-emerald-500 cursor-pointer"
-                  />
-                  <label htmlFor="restoreStock" className="text-xs cursor-pointer select-none">
-                    <span className="font-bold text-emerald-400 block">
-                      Restock into Available Inventory (+{foundQty} pcs)
-                    </span>
-                    <span className="text-stone-400 text-[11px] block mt-0.5">
-                      Automatically increases the product's on-shelf stock quantity so it can be sold again.
-                    </span>
-                  </label>
-                </div>
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-stone-300">
+                        Date Recovered / Found
+                      </label>
+                      <input
+                        type="date"
+                        value={foundDate}
+                        onChange={(e) => setFoundDate(e.target.value)}
+                        className="w-full rounded-xl border border-orange-500/25 bg-stone-950 px-3 py-2.5 text-sm text-white focus:border-orange-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
 
-                {/* Resolution Notes */}
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Found Notes / Remarks (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={foundNotes}
-                    onChange={(e) => setFoundNotes(e.target.value)}
-                    placeholder="e.g. Found behind shelf A, returned by staff..."
-                    className="w-full px-3 py-2 rounded-xl bg-stone-950 border border-stone-800 text-sm text-white placeholder-stone-400 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
+                  <div className="rounded-2xl border border-orange-500/20 bg-stone-950/80 p-3">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="restoreStock"
+                        checked={restoreStock}
+                        onChange={(e) => setRestoreStock(e.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-orange-500/40 text-orange-500 focus:ring-orange-400 focus:ring-offset-stone-900 accent-orange-500 cursor-pointer"
+                      />
+                      <label htmlFor="restoreStock" className="cursor-pointer select-none text-sm">
+                        <span className="block font-bold text-orange-300">
+                          Restock into Available Inventory (+{foundQty} pcs)
+                        </span>
+                        <span className="mt-1 block text-[11px] text-stone-400">
+                          Automatically increases the product's on-shelf stock quantity so it can be sold again.
+                        </span>
+                      </label>
+                    </div>
+                  </div>
 
-                {/* Actions */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedLogForUpdate(null)}
-                    disabled={isUpdating}
-                    className="py-2 px-4 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-semibold transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isUpdating}
-                    className="py-2 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95"
-                  >
-                    {isUpdating ? (
-                      <span>Saving...</span>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Confirm - Restock & Remove from Lost</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-stone-300">
+                      Found Notes / Remarks (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={foundNotes}
+                      onChange={(e) => setFoundNotes(e.target.value)}
+                      placeholder="e.g. Found behind shelf A, returned by staff..."
+                      className="w-full rounded-xl border border-orange-500/25 bg-stone-950 px-3 py-2.5 text-sm text-white placeholder-stone-500 focus:border-orange-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 border-t border-orange-500/20 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLogForUpdate(null)}
+                      disabled={isUpdating}
+                      className="rounded-xl bg-stone-800 px-4 py-2.5 text-xs font-semibold text-stone-300 transition hover:bg-stone-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isUpdating}
+                      className="rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-orange-600/20 transition hover:from-orange-500 hover:to-amber-600 disabled:opacity-60"
+                    >
+                      {isUpdating ? (
+                        <span>Saving...</span>
+                      ) : (
+                        <>
+                          <span>Confirm - Restock & Remove from Lost</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         )}

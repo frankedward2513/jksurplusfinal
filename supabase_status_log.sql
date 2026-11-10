@@ -18,7 +18,7 @@ alter table public.audit_logs
 
 alter table public.audit_logs
   add constraint audit_logs_action_check
-  check (action in ('INSERT', 'UPDATE', 'DELETE', 'SALE', 'LOST'));
+  check (action in ('INSERT', 'UPDATE', 'DELETE', 'SALE', 'LOST', 'FOUND'));
 
 alter table public.audit_logs
   drop constraint if exists audit_logs_actor_role_check;
@@ -80,12 +80,17 @@ begin
     row_id := coalesce(new_row ->> 'order_number', new_row ->> 'id');
     log_action := 'SALE';
   elsif tg_table_name = 'item_logs' then
-    if tg_op <> 'INSERT' or lower(coalesce(new_row ->> 'type', '')) <> 'lost' then
-      if tg_op = 'DELETE' then return old; end if;
+    if tg_op = 'INSERT' and lower(coalesce(new_row ->> 'type', '')) = 'lost' then
+      row_id := new_row ->> 'id';
+      log_action := 'LOST';
+    elsif tg_op = 'UPDATE' and lower(coalesce(new_row ->> 'status', '')) = 'found' then
+      row_id := new_row ->> 'id';
+      log_action := 'FOUND';
+    elsif tg_op = 'DELETE' then
+      return old;
+    else
       return new;
     end if;
-    row_id := new_row ->> 'id';
-    log_action := 'LOST';
   elsif tg_table_name = 'transactions' then
     if tg_op = 'DELETE' then return old; end if;
     return new;
@@ -117,7 +122,7 @@ begin
     actor_role
   )
   values (
-    case when log_action = 'SALE' then 'POS' when log_action = 'LOST' then 'Log Lost Item' else tg_table_name end,
+    case when log_action = 'SALE' then 'POS' when log_action in ('LOST', 'FOUND') then 'Log Lost Item' else tg_table_name end,
     row_id,
     log_action,
     auth.uid(),

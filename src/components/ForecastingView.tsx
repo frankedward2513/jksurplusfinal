@@ -203,6 +203,34 @@ export const ForecastingView: React.FC = () => {
   const periodTitle = forecastPeriod === 'daily' ? 'Day' : forecastPeriod === 'weekly' ? 'Week' : 'Month';
   const historicalRange = forecastPeriod === 'daily' ? '30 days' : forecastPeriod === 'weekly' ? '12 weeks' : '12 months';
 
+  const forecastInsight = useMemo(() => {
+    const historyWindow = ewmaData.historyPoints.slice(-Math.min(3, ewmaData.historyPoints.length));
+    const recentAverage = historyWindow.length
+      ? historyWindow.reduce((sum, point) => sum + point.actual, 0) / historyWindow.length
+      : 0;
+    const nextAverage = ewmaData.forecastPoints.length
+      ? ewmaData.forecastPoints.reduce((sum, point) => sum + point.predicted, 0) / ewmaData.forecastPoints.length
+      : 0;
+    const changePercent = recentAverage > 0 ? ((nextAverage - recentAverage) / recentAverage) * 100 : 0;
+    const direction = changePercent >= 0 ? 'higher' : 'lower';
+    const categoryText = selectedCategory === 'all' ? 'storewide sales' : `${selectedCategory} sales`;
+    const horizonText =
+      forecastPeriod === 'daily'
+        ? `the next ${forecastHorizon} days`
+        : forecastPeriod === 'weekly'
+          ? `the next ${forecastHorizon} weeks`
+          : `the next ${forecastHorizon} months`;
+
+    const summary = Math.abs(changePercent) < 5
+      ? `Sales are holding steady for ${categoryText}, with little change expected ${horizonText}.`
+      : `Projected ${categoryText} are expected to be ${Math.abs(changePercent).toFixed(1)}% ${direction} ${horizonText}.`;
+
+    return {
+      summary,
+      note: `Based on the last ${historicalRange} of EWMA trend data, the forecast is tracking ${direction} than the recent average.`,
+    };
+  }, [ewmaData, selectedCategory, forecastPeriod, forecastHorizon, historicalRange]);
+
   // SVG dimensions for EWMA line graph
   const maxSales = Math.max(
     ...ewmaData.allPoints.map((p) => Math.max(p.actual, p.predicted)),
@@ -566,6 +594,17 @@ export const ForecastingView: React.FC = () => {
                 </div>
               </div>
             )}
+
+            <div className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-3 text-left">
+              <div className="flex items-start gap-2">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300">Forecast Insight</p>
+                  <p className="mt-1 text-sm font-medium text-stone-100">{forecastInsight.summary}</p>
+                  <p className="mt-1 text-xs text-stone-400">{forecastInsight.note}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
   );

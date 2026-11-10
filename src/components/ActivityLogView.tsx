@@ -4,7 +4,7 @@ import { useStore } from '../context/StoreContext';
 import { supabase } from '../lib/supabase';
 import { PAGE_SIZE, Pagination } from './Pagination';
 
-type ActivityAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'SALE' | 'LOST';
+type ActivityAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'SALE' | 'LOST' | 'FOUND';
 type DateFilter = 'all' | 'today' | 'last7' | 'this_month' | 'custom';
 
 interface ActivityLogEntry {
@@ -29,7 +29,7 @@ function getLoadErrorMessage(error: unknown): string {
 
 function formatRecord(entry: ActivityLogEntry): string {
   if (entry.action === 'SALE') return 'POS';
-  if (entry.action === 'LOST') return 'Log Lost Item';
+  if (entry.action === 'LOST' || entry.action === 'FOUND') return 'Log Lost Item';
 
   switch (entry.table_name) {
     case 'suppliers':
@@ -51,6 +51,8 @@ function formatAction(action: ActivityAction): string {
       return 'Sales';
     case 'LOST':
       return 'Lost';
+    case 'FOUND':
+      return 'Found';
     case 'INSERT':
       return 'Add';
     case 'UPDATE':
@@ -263,11 +265,13 @@ export const ActivityLogView: React.FC = () => {
                             ? 'border-sky-500/30 bg-sky-500/10 text-sky-300'
                             : entry.action === 'LOST'
                               ? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
-                              : entry.action === 'INSERT'
+                              : entry.action === 'FOUND'
                                 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                                : entry.action === 'UPDATE'
-                                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                                  : 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                                : entry.action === 'INSERT'
+                                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                                  : entry.action === 'UPDATE'
+                                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                                    : 'border-rose-500/30 bg-rose-500/10 text-rose-400'
                         }`}
                       >
                         {formatAction(entry.action)}
