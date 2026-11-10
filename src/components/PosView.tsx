@@ -214,7 +214,7 @@ export const PosView: React.FC = () => {
             <span>Fast POS Checkout Guide</span>
           </h4>
           <ul className="space-y-1.5 list-disc list-inside text-[11px] leading-relaxed">
-            <li>Type any product barcode number or product name and press <strong>Enter</strong>.</li>
+            <li>Type any product barcode number and press <strong>Enter</strong>.</li>
             <li>Adjust quantities or remove items directly in the cart bag.</li>
             <li>Choose <strong>Cash</strong> or <strong>GCash</strong>, enter tendered amount, and change will auto-compute.</li>
             <li>Click <strong>Confirm Transaction</strong> to deduct stock and generate an official receipt.</li>

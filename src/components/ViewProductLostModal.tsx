@@ -225,14 +225,11 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
             </span>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span>Lost Products Ledger</span>
+                <span>Lost Products</span>
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 font-mono font-semibold border border-orange-500/30">
                   {lostLogs.length} Missing
                 </span>
               </h3>
-              <p className="text-xs text-stone-400">
-                Active missing items. When found, mark them to automatically restock inventory and remove from lost.
-              </p>
             </div>
           </div>
 
@@ -432,20 +429,6 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="pt-4 mt-3 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
-          <span>
-            Showing {filteredLogs.length} of {lostLogs.length} missing records
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="py-1.5 px-4 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 font-semibold transition"
-          >
-            Close
-          </button>
-        </div>
-
         {/* Sub-modal: Update If Found Dialog */}
         {selectedLogForUpdate && (
           <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
@@ -479,13 +462,6 @@ export const ViewProductLostModal: React.FC<ViewProductLostModalProps> = ({
                   <span className="mt-1 block font-mono text-2xl font-black text-white">
                     ₱{((selectedLogForUpdate.quantity || 0) * (products.find((p) => p.id === selectedLogForUpdate.productId)?.sellingPrice || 0)).toLocaleString()}
                   </span>
-                </div>
-
-                <div className="rounded-2xl border border-orange-500/20 bg-stone-950/70 px-4 py-3 text-sm text-stone-300">
-                  <p>
-                    Found items will be <span className="font-bold text-orange-300">restocked to active inventory</span> and{' '}
-                    <span className="font-bold text-orange-300">removed from the lost list</span>.
-                  </p>
                 </div>
 
                 <form onSubmit={handleConfirmFound} className="space-y-4">
