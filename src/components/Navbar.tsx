@@ -75,7 +75,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       return [
         { id: 'pos' as ActiveTab, label: 'POS', icon: Store },
         { id: 'inventory' as ActiveTab, label: 'Inventory Management', icon: Boxes },
-        { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
       ];
     } else {
       return [{ id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt }];
@@ -86,13 +85,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   const otherNavItems =
     currentUser.role === 'owner'
       ? [
-          { id: 'exbin' as ActiveTab, label: 'exBIN', icon: Trash2 },
-          { id: 'status_log' as ActiveTab, label: 'Status Log', icon: ClipboardList },
-          { id: 'receipts' as ActiveTab, label: 'Receipts', icon: ReceiptText },
           { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
           { id: 'pos' as ActiveTab, label: 'POS', icon: Store },
+          { id: 'receipts' as ActiveTab, label: 'Receipts', icon: ReceiptText },
+          { id: 'exbin' as ActiveTab, label: 'exBIN', icon: Trash2 },
+          { id: 'status_log' as ActiveTab, label: 'Status Log', icon: ClipboardList },
         ]
-      : [];
+      : currentUser.role === 'staff'
+        ? [
+            { id: 'showcase' as ActiveTab, label: 'Showcase Shop', icon: Shirt },
+            { id: 'receipts' as ActiveTab, label: 'Receipts', icon: ReceiptText },
+          ]
+        : [];
 
   const selectTab = (tab: ActiveTab) => {
     onSelectTab(tab);
@@ -361,7 +365,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   );
                 })}
-                {otherNavItems.length > 0 && (
+                {currentUser.role === 'staff' ? (
+                  <div className="space-y-1.5 border-t border-orange-500/20 pt-3">
+                    {otherNavItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            selectTab(item.id);
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition ${
+                            isActive
+                              ? 'bg-gradient-to-r from-orange-600 to-amber-700 text-white shadow-md'
+                              : 'text-stone-300 hover:bg-stone-800'
+                          }`}
+                        >
+                          <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-orange-400'}`} />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : otherNavItems.length > 0 && (
                   <div className="space-y-1.5">
                     <button
                       type="button"

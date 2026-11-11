@@ -62,10 +62,10 @@ export const ReceiptsView: React.FC = () => {
     [inflowTransactions],
   );
 
-  if (currentUser.role !== 'owner') {
+  if (currentUser.role !== 'owner' && currentUser.role !== 'staff') {
     return (
       <div role="alert" className="rounded-2xl border border-red-500/30 bg-red-950/50 p-4 text-sm text-red-200">
-        Only the admin can view receipts.
+        Only staff and the admin can view receipts.
       </div>
     );
   }

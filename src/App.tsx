@@ -97,7 +97,8 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'status_log' && currentUser.role === 'owner' && <ActivityLogView />}
 
-          {activeTab === 'receipts' && currentUser.role === 'owner' && <ReceiptsView />}
+          {activeTab === 'receipts' &&
+            (currentUser.role === 'owner' || currentUser.role === 'staff') && <ReceiptsView />}
 
           {activeTab === 'showcase' && <ShowcaseShopView />}
 

@@ -35,6 +35,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     expenseAccounts,
     transactions,
     products,
+    categories,
   } = useStore();
 
   const [dateFilter, setDateFilter] = useState<DateFilterPreset>('all');
@@ -294,11 +295,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   }, [orders, products]);
 
   const slowMovingCategories = useMemo(
-    () =>
-      Array.from(
-        new Set(products.map((product) => product.category?.trim() || 'Uncategorized')),
-      ).sort((categoryA, categoryB) => categoryA.localeCompare(categoryB)),
-    [products],
+    () => slowMovingProductsByCategory.map(([category]) => category),
+    [slowMovingProductsByCategory],
   );
 
   const visibleSlowMovingProductsByCategory = useMemo(
@@ -870,23 +868,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 Slow-moving products
               </h2>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <label htmlFor="slow-moving-category" className="sr-only">Filter by category</label>
-              <select
-                id="slow-moving-category"
-                value={slowMovingCategory}
-                onChange={(event) => setSlowMovingCategory(event.target.value)}
-                className="rounded-xl border border-orange-500/25 bg-stone-950/80 px-3 py-2.5 text-xs font-semibold text-stone-200 transition focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
-              >
-                <option value="all">All categories</option>
-                {slowMovingCategories.map((category) => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-              <span className="whitespace-nowrap rounded-xl border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-xs font-semibold text-orange-300">
-                {visibleSlowMovingProductsByCategory.reduce((total, [, items]) => total + items.length, 0)} items found
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 text-xs">
+              <span className="flex shrink-0 items-center gap-1 pr-1 font-semibold text-stone-400">
+                <Filter className="h-3.5 w-3.5 text-orange-400" />
+                Categories:
               </span>
+              <button
+                type="button"
+                onClick={() => setSlowMovingCategory('all')}
+                aria-pressed={slowMovingCategory === 'all'}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 font-medium transition ${
+                  slowMovingCategory === 'all'
+                    ? 'bg-orange-600 text-white'
+                    : 'border border-stone-800 bg-stone-900/80 text-stone-400 hover:text-white'
+                }`}
+              >
+                All Items
+              </button>
+              {slowMovingCategories.map((category) => {
+                const categoryColor =
+                  categories.find((item) => item.name.toLowerCase() === category.toLowerCase())?.color ||
+                  '#ea580c';
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSlowMovingCategory(category)}
+                    aria-pressed={slowMovingCategory === category}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-medium transition ${
+                      slowMovingCategory.toLowerCase() === category.toLowerCase()
+                        ? 'bg-orange-600 text-white'
+                        : 'border border-stone-800 bg-stone-900/80 text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: categoryColor }}
+                    />
+                    {category}
+                  </button>
+                );
+              })}
             </div>
+            <span className="whitespace-nowrap rounded-xl border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-xs font-semibold text-orange-300">
+              {visibleSlowMovingProductsByCategory.reduce((total, [, items]) => total + items.length, 0)} items found
+            </span>
           </div>
           {visibleSlowMovingProductsByCategory.length === 0 ? (
             <p className="py-8 text-center text-sm text-stone-400">Add products to see slow-moving inventory.</p>
