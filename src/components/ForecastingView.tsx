@@ -12,6 +12,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function splitForecastInsight(text: string): { insight: string; recommendation: string | null } {
+  const heading = /\*{0,2}recommendations?\*{0,2}\s*:\s*\*{0,2}\s*/i.exec(text);
+  if (!heading) return { insight: text.trim(), recommendation: null };
+
+  const insight = text.slice(0, heading.index).trim();
+  const recommendation = text.slice(heading.index + heading[0].length).trim();
+  return { insight, recommendation: recommendation || null };
+}
+
+function getDataBasedRecommendation(context: {
+  category: string;
+  interval: 'daily' | 'weekly' | 'monthly';
+  forecastChangePercent: number | null;
+  recentActuals: { date: string; sales: number }[];
+}): string {
+  const interval = context.interval === 'weekly'
+    ? 'week'
+    : context.interval === 'monthly'
+      ? 'month'
+      : 'day';
+  const category = context.category === 'All store categories combined'
+    ? 'all categories'
+    : `the ${context.category} category`;
+  const hasSalesHistory = context.recentActuals.some((point) => point.sales > 0);
+
+  if (!hasSalesHistory) {
+    return 'Record completed sales consistently and review the forecast again after more sales history is available.';
+  }
+  if (context.forecastChangePercent !== null && context.forecastChangePercent > 5) {
+    return `Review current stock levels for products in ${category} against your usual reorder criteria before ordering; a higher sales forecast alone does not confirm a stock shortage.`;
+  }
+  if (context.forecastChangePercent !== null && context.forecastChangePercent < -5) {
+    return `Use the next ${interval} to monitor actual sales before increasing replenishment for ${category}.`;
+  }
+  return 'Keep the current replenishment plan and compare actual sales with the forecast at the next interval.';
+}
+
 export const ForecastingView: React.FC = () => {
   const { orders, transactions, categories, products } = useStore();
 
@@ -21,6 +58,7 @@ export const ForecastingView: React.FC = () => {
   const [forecastHorizon, setForecastHorizon] = useState(3);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [aiForecastInsight, setAiForecastInsight] = useState<string | null>(null);
+  const [aiForecastRecommendation, setAiForecastRecommendation] = useState<string | null>(null);
   const [isAiInsightFallback, setIsAiInsightFallback] = useState(false);
   const [aiInsightFallbackReason, setAiInsightFallbackReason] = useState<
     'missing-api-key' | 'provider-error' | null
@@ -254,6 +292,7 @@ export const ForecastingView: React.FC = () => {
     const loadAiInsight = async () => {
       setIsLoadingAiInsight(true);
       setAiForecastInsight(null);
+      setAiForecastRecommendation(null);
       setIsAiInsightFallback(false);
       setAiInsightFallbackReason(null);
       setAiInsightError(null);
@@ -281,7 +320,11 @@ export const ForecastingView: React.FC = () => {
           throw new Error('OpenRouter returned an empty forecast insight.');
         }
         if (isCurrentRequest) {
-          setAiForecastInsight(data.text.trim());
+          const parsedInsight = splitForecastInsight(data.text.trim());
+          setAiForecastInsight(parsedInsight.insight || data.text.trim());
+          setAiForecastRecommendation(
+            parsedInsight.recommendation || getDataBasedRecommendation(forecastInsightContext)
+          );
           setIsAiInsightFallback(data.fallback === true);
           setAiInsightFallbackReason(
             data.fallbackReason === 'missing-api-key' || data.fallbackReason === 'provider-error'
@@ -688,6 +731,12 @@ export const ForecastingView: React.FC = () => {
                   ) : aiForecastInsight ? (
                     <div className="mt-2 space-y-2">
                       <p className="whitespace-pre-line text-sm font-medium text-stone-100">{aiForecastInsight}</p>
+                      <div className="rounded-lg border border-orange-400/20 bg-orange-400/5 p-2.5">
+                        <p className="text-xs font-bold text-orange-200">Recommendation</p>
+                        <p className="mt-1 whitespace-pre-line text-sm text-stone-100">
+                          {aiForecastRecommendation || getDataBasedRecommendation(forecastInsightContext)}
+                        </p>
+                      </div>
                       {isAiInsightFallback && (
                         <p className="text-xs text-stone-400">
                           {aiInsightFallbackReason === 'missing-api-key'
