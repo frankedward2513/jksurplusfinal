@@ -24,6 +24,7 @@ function splitForecastInsight(text: string): { insight: string; recommendation: 
 function getDataBasedRecommendation(context: {
   category: string;
   interval: 'daily' | 'weekly' | 'monthly';
+  forecastHorizon: number;
   forecastChangePercent: number | null;
   recentActuals: { date: string; sales: number }[];
 }): string {
@@ -38,13 +39,16 @@ function getDataBasedRecommendation(context: {
   const hasSalesHistory = context.recentActuals.some((point) => point.sales > 0);
 
   if (!hasSalesHistory) {
-    return 'Record completed sales consistently and review the forecast again after more sales history is available.';
+    return `Check that saleable items in ${category} are available and easy to find, try one margin-safe bundle or limited-time offer, and record each completed sale to measure whether it helps; results are not guaranteed.`;
+  }
+  if (context.forecastChangePercent === null) {
+    return `Try one margin-safe promotion on saleable items in ${category}, then compare actual sales over the next ${context.forecastHorizon} ${interval}${context.forecastHorizon === 1 ? '' : 's'} with this forecast to measure the result.`;
   }
   if (context.forecastChangePercent !== null && context.forecastChangePercent > 5) {
     return `Review current stock levels for products in ${category} against your usual reorder criteria before ordering; a higher sales forecast alone does not confirm a stock shortage.`;
   }
   if (context.forecastChangePercent !== null && context.forecastChangePercent < -5) {
-    return `Use the next ${interval} to monitor actual sales before increasing replenishment for ${category}.`;
+    return `To try to lift sales in ${category}, feature currently in-stock items in a short, margin-safe bundle or limited-time offer and promote it in-store or through channels the shop already uses. Compare sales over the next ${context.forecastHorizon} ${interval}${context.forecastHorizon === 1 ? '' : 's'} with the recent average; this is a test, not a guarantee.`;
   }
   return 'Keep the current replenishment plan and compare actual sales with the forecast at the next interval.';
 }
@@ -304,7 +308,7 @@ export const ForecastingView: React.FC = () => {
           signal: controller.signal,
           body: JSON.stringify({
             mode: 'forecast-insight',
-            prompt: 'Analyze this sales forecast for the selected category and interval. Return exactly two short paragraphs: one labeled "Insight:" summarizing the trend, and one labeled "Recommendation:" containing exactly one practical action for the shop owner. Base both only on the supplied data. If there is not enough sales history, say so and make the recommendation appropriate to that limitation.',
+            prompt: 'Analyze this sales forecast for the selected category and interval. Return exactly two short paragraphs: one labeled "Insight:" summarizing the trend, and one labeled "Recommendation:" containing exactly one practical action for the shop owner. Base factual claims only on the supplied data and never promise a sales increase. If the forecast is more than 5% below the recent average, recommend a small, measurable sales-growth test using currently in-stock items in a margin-safe bundle or limited-time offer, promoted in-store or through channels the shop already uses; compare sales during the forecast period with the recent average. If there is not enough sales history, say so and make the recommendation appropriate to that limitation.',
             contextData: forecastInsightContext,
           }),
         });
@@ -321,9 +325,13 @@ export const ForecastingView: React.FC = () => {
         }
         if (isCurrentRequest) {
           const parsedInsight = splitForecastInsight(data.text.trim());
+          const isLowForecast = forecastInsightContext.forecastChangePercent !== null &&
+            forecastInsightContext.forecastChangePercent < -5;
           setAiForecastInsight(parsedInsight.insight || data.text.trim());
           setAiForecastRecommendation(
-            parsedInsight.recommendation || getDataBasedRecommendation(forecastInsightContext)
+            isLowForecast
+              ? getDataBasedRecommendation(forecastInsightContext)
+              : parsedInsight.recommendation || getDataBasedRecommendation(forecastInsightContext)
           );
           setIsAiInsightFallback(data.fallback === true);
           setAiInsightFallbackReason(
@@ -732,7 +740,12 @@ export const ForecastingView: React.FC = () => {
                     <div className="mt-2 space-y-2">
                       <p className="whitespace-pre-line text-sm font-medium text-stone-100">{aiForecastInsight}</p>
                       <div className="rounded-lg border border-orange-400/20 bg-orange-400/5 p-2.5">
-                        <p className="text-xs font-bold text-orange-200">Recommendation</p>
+                        <p className="text-xs font-bold text-orange-200">
+                          {forecastInsightContext.forecastChangePercent !== null &&
+                          forecastInsightContext.forecastChangePercent < -5
+                            ? 'Recommendation to try to lift sales'
+                            : 'Recommendation'}
+                        </p>
                         <p className="mt-1 whitespace-pre-line text-sm text-stone-100">
                           {aiForecastRecommendation || getDataBasedRecommendation(forecastInsightContext)}
                         </p>
