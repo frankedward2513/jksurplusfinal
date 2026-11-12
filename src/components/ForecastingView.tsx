@@ -53,6 +53,15 @@ function getDataBasedRecommendation(context: {
   return `Try one small, margin-safe promotion on currently in-stock items in ${category}, then compare actual sales with the forecast at the next interval to see whether it helps.`;
 }
 
+function getProviderErrorMessage(status: number | null): string {
+  if (status === 401) return 'OpenRouter rejected the server API key (HTTP 401). Check OPENROUTER_API_KEY in Vercel.';
+  if (status === 402) return 'OpenRouter reported a quota or credit issue (HTTP 402). Check your OpenRouter account.';
+  if (status === 403) return 'OpenRouter denied this request (HTTP 403). Check model access and key permissions.';
+  if (status === 429) return 'OpenRouter is rate-limiting this request (HTTP 429). Try again later.';
+  if (status === 503) return 'The OpenRouter provider is temporarily unavailable (HTTP 503). Try again later.';
+  return `The OpenRouter request failed${status === null ? '' : ` (HTTP ${status})`}. Check the Vercel function logs.`;
+}
+
 export const ForecastingView: React.FC = () => {
   const { orders, transactions, categories, products } = useStore();
 
@@ -67,6 +76,7 @@ export const ForecastingView: React.FC = () => {
   const [aiInsightFallbackReason, setAiInsightFallbackReason] = useState<
     'missing-api-key' | 'provider-error' | null
   >(null);
+  const [aiInsightProviderStatus, setAiInsightProviderStatus] = useState<number | null>(null);
   const [isLoadingAiInsight, setIsLoadingAiInsight] = useState(false);
   const [aiInsightError, setAiInsightError] = useState<string | null>(null);
   const horizonOptions =
@@ -299,6 +309,7 @@ export const ForecastingView: React.FC = () => {
       setAiForecastRecommendation(null);
       setIsAiInsightFallback(false);
       setAiInsightFallbackReason(null);
+      setAiInsightProviderStatus(null);
       setAiInsightError(null);
 
       try {
@@ -337,6 +348,11 @@ export const ForecastingView: React.FC = () => {
           setAiInsightFallbackReason(
             data.fallbackReason === 'missing-api-key' || data.fallbackReason === 'provider-error'
               ? data.fallbackReason
+              : null
+          );
+          setAiInsightProviderStatus(
+            typeof data.providerStatus === 'number' && Number.isInteger(data.providerStatus)
+              ? data.providerStatus
               : null
           );
         }
@@ -758,7 +774,7 @@ export const ForecastingView: React.FC = () => {
                           {aiInsightFallbackReason === 'missing-api-key'
                             ? 'The server is missing OPENROUTER_API_KEY. Add it to the server environment and redeploy. This insight was calculated from the forecast data.'
                             : aiInsightFallbackReason === 'provider-error'
-                              ? 'The OpenRouter request failed. Check the server logs. This insight was calculated from the forecast data.'
+                              ? `${getProviderErrorMessage(aiInsightProviderStatus)} This insight was calculated from the forecast data.`
                               : 'OpenRouter is unavailable. This insight was calculated from the forecast data.'}
                         </p>
                       )}

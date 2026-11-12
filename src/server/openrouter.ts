@@ -30,6 +30,7 @@ type OpenRouterApiResult = {
     text?: string;
     fallback?: boolean;
     fallbackReason?: 'missing-api-key' | 'provider-error';
+    providerStatus?: number;
     error?: string;
     usage?: {
       reasoningTokens?: number;
@@ -43,6 +44,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function numberValue(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function getProviderStatus(error: unknown): number | undefined {
+  if (!isRecord(error)) return undefined;
+  const status = error.statusCode ?? error.status;
+  return typeof status === 'number' && Number.isInteger(status) ? status : undefined;
 }
 
 function fallbackChatAnswer(contextData: unknown): string {
@@ -176,6 +183,7 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
   try {
     const model = process.env.OPENROUTER_MODEL?.trim() ||
       'nvidia/nemotron-3-ultra-550b-a55b:free';
+    const backupModel = 'nvidia/nemotron-3.5-lightning:free';
     const openrouter = new OpenRouter({
       apiKey,
       appTitle: 'EXINS Inventory and Forecasting',
@@ -186,8 +194,8 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
     }[${isForecastRequest ? 'FORECAST INSIGHT REQUEST' : 'SHOP QUESTION'}]\n${prompt}`;
     const stream = await openrouter.chat.send({
       chatRequest: {
-        model,
-        maxTokens: isForecastRequest ? 400 : 800,
+        models: model === backupModel ? [model] : [model, backupModel],
+        maxTokens: isForecastRequest ? 1200 : 800,
         messages: [
           {
             role: 'system',
@@ -203,7 +211,10 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
 
     for await (const chunk of stream) {
       if (chunk.error) {
-        throw new Error(`OpenRouter stream error: ${chunk.error.message}`);
+        throw Object.assign(
+          new Error(`OpenRouter stream error: ${chunk.error.message}`),
+          { statusCode: chunk.error.code }
+        );
       }
 
       const content = chunk.choices[0]?.delta?.content;
@@ -233,6 +244,7 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
     };
   } catch (error: unknown) {
     console.error('OpenRouter API Error:', error);
+    const providerStatus = getProviderStatus(error);
     return {
       status: 200,
       body: {
@@ -241,6 +253,7 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
           : fallbackChatAnswer(data.contextData),
         fallback: true,
         fallbackReason: 'provider-error',
+        ...(providerStatus === undefined ? {} : { providerStatus }),
       },
     };
   }
