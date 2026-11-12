@@ -39,18 +39,18 @@ function getDataBasedRecommendation(context: {
   const hasSalesHistory = context.recentActuals.some((point) => point.sales > 0);
 
   if (!hasSalesHistory) {
-    return `Check that saleable items in ${category} are available and easy to find, try one margin-safe bundle or limited-time offer, and record each completed sale to measure whether it helps; results are not guaranteed.`;
+    return `Treat this projection as uncertain: verify recent sales records and on-hand stock for ${category}, then compare the next ${context.forecastHorizon} ${interval}${context.forecastHorizon === 1 ? '' : 's'} of actual sales with the forecast before making a major purchase or pricing change.`;
   }
   if (context.forecastChangePercent === null) {
-    return `Try one margin-safe promotion on saleable items in ${category}, then compare actual sales over the next ${context.forecastHorizon} ${interval}${context.forecastHorizon === 1 ? '' : 's'} with this forecast to measure the result.`;
+    return `Validate the category and dates on recent sales records, check current stock in ${category}, and compare actual sales with this projection before making a major purchase or pricing change.`;
   }
   if (context.forecastChangePercent !== null && context.forecastChangePercent > 5) {
-    return `To capture the projected rise in ${category}, feature currently in-stock items prominently in-store and through channels the shop already uses, and pair complementary items in a margin-safe bundle. Track daily sales and check actual stock before reordering; the forecast does not guarantee sales or prove a shortage.`;
+    return `Use the higher projection to prepare, not to assume a shortage: check current stock in ${category}, keep relevant in-stock items visible, and track actual sales against the forecast before reordering.`;
   }
   if (context.forecastChangePercent !== null && context.forecastChangePercent < -5) {
-    return `To try to lift sales in ${category}, feature currently in-stock items in a short, margin-safe bundle or limited-time offer and promote it in-store or through channels the shop already uses. Compare sales over the next ${context.forecastHorizon} ${interval}${context.forecastHorizon === 1 ? '' : 's'} with the recent average; this is a test, not a guarantee.`;
+    return `Since the forecast is below the recent average, avoid increasing purchases until actual sales confirm the drop; check stock and visibility in ${category}, test one small margin-safe offer, and compare sales over the next ${context.forecastHorizon} ${interval}${context.forecastHorizon === 1 ? '' : 's'} with the recent average.`;
   }
-  return `Try one small, margin-safe promotion on currently in-stock items in ${category}, then compare actual sales with the forecast at the next interval to see whether it helps.`;
+  return `Since the forecast is close to the recent average, maintain the current pricing and replenishment plan, then compare actual sales with the forecast at the next interval before making a major change.`;
 }
 
 function getProviderErrorMessage(status: number | null): string {
@@ -319,7 +319,7 @@ export const ForecastingView: React.FC = () => {
           signal: controller.signal,
           body: JSON.stringify({
             mode: 'forecast-insight',
-            prompt: 'Analyze this sales forecast for the selected category and interval. Return exactly two short paragraphs: one labeled "Insight:" summarizing the trend, and one labeled "Recommendation:" containing exactly one practical action for the shop owner. Base factual claims only on the supplied data and never promise a sales increase. If the forecast is more than 5% below the recent average, recommend a small, measurable sales-growth test using a margin-safe promotion on currently in-stock items. If it is more than 5% above the recent average, recommend how to capture the opportunity, such as making in-stock items more visible or pairing complementary items in a margin-safe bundle. In either case, compare actual sales with the recent average and do not make reordering the only recommendation. If there is not enough sales history, say so and make the recommendation appropriate to that limitation.',
+            prompt: 'Analyze the supplied forecast result for the selected category and interval. Return exactly two short paragraphs: one labeled "Insight:" with the projected average and its percentage change versus recent sales, and one labeled "Recommendation:" with exactly one practical action tied to that result. For a forecast more than 5% above recent sales, explain how to prepare for possible demand using current stock and monitoring; do not assume there is a shortage. For a forecast more than 5% below recent sales, explain how to limit purchase risk and test whether a small, margin-safe offer helps. If within 5%, advise maintaining the current plan and checking actuals before a major change. If the history is insufficient, say the forecast is uncertain and recommend validating the sales records. Use only supplied facts, do not invent causes, and do not promise a result.',
             contextData: forecastInsightContext,
           }),
         });
