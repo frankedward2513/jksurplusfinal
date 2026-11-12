@@ -1,250 +1,264 @@
-@startuml
-title EXINS Database Tables and StoreContext Operations
-left to right direction
+@startuml EXINS_Class_Diagram
+title EXINS - Application and Data Model
+top to bottom direction
 skinparam classAttributeIconSize 0
 skinparam linetype ortho
+hide empty members
 
-class "auth.users" as AuthUsers <<Supabase Auth>> {
-  id: uuid
+package "Identity" {
+  class AuthUser <<Supabase Auth>> {
+    +id: UUID
+    +email: string
+  }
+  class UserProfile <<TypeScript model>> {
+    +uid: string
+    +email: string
+    +displayName: string
+    +role: UserRole
+  }
+  enum UserRole {
+    owner
+    staff
+    customer
+    guest
+  }
+  class "public.users" as PublicUsers <<table>> {
+    +id: text <<PK>>
+    +uid: text <<unique>>
+    +role: text
+  }
 }
 
-class "public.users" as Users <<table>> {
-  id: text
-  uid: text
-  email: text
-  display_name: text
-  role: text
-  phone: text
-  address: text
-  provider: text
-  is_guest: boolean
-  created_at: timestamptz
-  --
-  +signupAs()
-  +loginAs()
-  +completeGoogleSignUp()
-  +logout()
+package "Inventory and sales" {
+  class Supplier {
+    +id: string
+    +name: string
+  }
+  class Category {
+    +id: string
+    +name: string
+  }
+  class Bale {
+    +id: string
+    +baleCode: string
+    +supplierId: string
+    +status: BaleStatus
+  }
+  enum BaleStatus {
+    sealed
+    opened
+    depleted
+  }
+  class Product {
+    +id: string
+    +category: string
+    +baleCode: string
+    +availableQuantity: number
+  }
+  class Order {
+    +id: string
+    +orderNumber: string
+    +customerName: string
+    +items: OrderItem[]
+    +totalAmount: number
+    +status: OrderStatus
+  }
+  class OrderItem <<orders.items JSONB>> {
+    +productId: string
+    +quantity: number
+    +price: number
+  }
+  enum OrderStatus {
+    pending
+    preparing
+    dropped_to_courier
+    completed
+    cancelled
+  }
+  class CustomerSummary {
+    +id: string
+    +customerName: string
+    +totalPurchase: number
+  }
 }
 
-class "public.bales" as Bales <<table>> {
-  id: text
-  bale_code: text
-  bale_name: text
-  category: text
-  supplier_id: text
-  supplier_name: text
-  total_purchase_price: numeric
-  quantity_purchase: numeric
-  price_per_piece: numeric
-  description: text
-  status: text
-  total_sales_made: numeric
-  created_at: timestamptz
-  --
-  +addBale()
-  +updateBale()
-  +deleteBale()
+package "Finance and item history" {
+  enum PaymentMethod {
+    cash
+    gcash
+    bank_transfer
+    card
+  }
+  class ExpenseAccount {
+    +id: string
+    +name: string
+  }
+  class Expense {
+    +id: string
+    +accountId: string
+    +amount: number
+    +paymentMethod: PaymentMethod
+  }
+  class Transaction {
+    +id: string
+    +flowType: FlowType
+    +orderId: string?
+    +expenseId: string?
+  }
+  enum FlowType {
+    inflow
+    outflow
+  }
+  class ItemStatusLog {
+    +id: string
+    +productId: string
+    +type: ItemStatusType
+    +status: ItemResolutionStatus?
+  }
+  enum ItemStatusType {
+    sold
+    returned
+    damaged
+    lost
+  }
+  enum ItemResolutionStatus {
+    lost
+    found
+    resolved
+  }
 }
 
-class "public.categories" as Categories <<table>> {
-  id: text
-  name: text
-  description: text
-  color: text
-  total_in_stock: numeric
-  created_at: timestamptz
-  --
-  +addCategory()
-  +updateCategory()
-  +deleteCategory()
+package "System records" {
+  class TrashItem <<StoreContext projection>> {
+    +id: string
+    +tableName: string
+    +recordId: string
+    +expiresAt: string
+  }
+  class "public.exbin_trash" as ExbinTrash <<table>> {
+    +id: UUID <<PK>>
+    +record_data: jsonb
+    +deleted_by: UUID <<FK>>
+    +expires_at: timestamptz
+  }
+  class "public.audit_logs" as AuditLogs <<optional table>> {
+    +id: bigint <<PK>>
+    +table_name: text
+    +actor_role: text
+  }
 }
 
-class "public.products" as Products <<table>> {
-  id: text
-  name: text
-  category: text
-  bale_code: text
-  bale_name: text
-  available_quantity: numeric
-  selling_price: numeric
-  cost_price: numeric
-  size: text
-  image_url: text
-  product_link: text
-  description: text
-  barcode: text
-  created_at: timestamptz
-  --
-  +addProduct()
-  +updateProduct()
-  +deleteProduct()
+package "Application state and persistence" {
+  interface StoreContextType {
+    +isDarkMode: boolean
+    +currentUser: UserProfile
+    +customers: CustomerSummary[]
+    +bales: Bale[]
+    +categories: Category[]
+    +products: Product[]
+    +suppliers: Supplier[]
+    +expenseAccounts: ExpenseAccount[]
+    +expenses: Expense[]
+    +orders: Order[]
+    +transactions: Transaction[]
+    +itemStatusLogs: ItemStatusLog[]
+    +formAlert: string?
+    +formAlertType: FormAlertType
+    +toggleDarkMode()
+    +loginAs()
+    +signupAs()
+    +loginWithGoogleFast()
+    +completeGoogleSignUp()
+    +logout()
+    +addBale()
+    +updateBale()
+    +deleteBale()
+    +addCategory()
+    +updateCategory()
+    +deleteCategory()
+    +addProduct()
+    +updateProduct()
+    +deleteProduct()
+    +addSupplier()
+    +updateSupplier()
+    +deleteSupplier()
+    +addExpenseAccount()
+    +updateExpenseAccount()
+    +deleteExpenseAccount()
+    +addExpense()
+    +deleteExpense()
+    +addTransaction()
+    +deleteTransaction()
+    +completePosSale()
+    +logItemStatus()
+    +updateItemStatusLog()
+    +deleteItemStatusLog()
+    +fetchTrashItems()
+    +restoreTrashItems()
+  }
+  enum FormAlertType {
+    success
+    error
+    info
+  }
+  class StoreProvider <<React component>>
+  class StoreContext <<React Context>>
+  class StoreHooks <<React module>> {
+    +useStore(): StoreContextType
+  }
+  class SupabaseDataAccess <<module>> {
+    +setDoc()
+    +updateDoc()
+    +deleteDoc()
+    +onSnapshot()
+    -readTable()
+  }
+  class SupabaseClient <<external service>>
 }
 
-class "public.suppliers" as Suppliers <<table>> {
-  id: text
-  name: text
-  contact_person: text
-  email: text
-  phone: text
-  address: text
-  description: text
-  total_bales_sourced: numeric
-  created_at: timestamptz
-  --
-  +addSupplier()
-  +updateSupplier()
-  +deleteSupplier()
-}
+UserProfile --> UserRole
+AuthUser ..> UserProfile : authenticated identity
+UserProfile ..> PublicUsers : signup profile
+Supplier "1" ..> "0..*" Bale : supplierId, logical
+Category "1" ..> "0..*" Bale : category, logical
+Category "1" ..> "0..*" Product : category, logical
+Bale "1" ..> "0..*" Product : baleCode, logical
+Product "1" ..> "0..*" ItemStatusLog : productId, logical
+Order "1" *-- "0..*" OrderItem : JSONB items
+ExpenseAccount "1" ..> "0..*" Expense : accountId, logical
+Order "0..1" ..> "0..*" Transaction : orderId, logical
+Expense "0..1" ..> "0..*" Transaction : expenseId, logical
+CustomerSummary "0..1" ..> "0..*" Order : customerName
+AuthUser "1" -- "0..*" ExbinTrash : deleted_by FK
+ExbinTrash ..> TrashItem : selected fields
 
-class "public.expense_accounts" as ExpenseAccounts <<table>> {
-  id: text
-  name: text
-  monthly_budget: numeric
-  description: text
-  total_spent: numeric
-  color: text
-  created_at: timestamptz
-  --
-  +addExpenseAccount()
-  +updateExpenseAccount()
-  +deleteExpenseAccount()
-}
+StoreProvider --> StoreContext : provides value
+StoreContext ..> StoreContextType : value shape
+StoreHooks ..> StoreContextType : returns
+StoreProvider o-- "0..*" Product
+StoreProvider o-- "0..*" Category
+StoreProvider o-- "0..*" Bale
+StoreProvider o-- "0..*" Supplier
+StoreProvider o-- "0..*" Order
+StoreProvider o-- "0..*" ExpenseAccount
+StoreProvider o-- "0..*" Expense
+StoreProvider o-- "0..*" Transaction
+StoreProvider o-- "0..*" ItemStatusLog
+StoreProvider o-- "0..*" CustomerSummary
+StoreProvider ..> SupabaseDataAccess
+SupabaseDataAccess --> SupabaseClient
+StoreProvider ..> ExbinTrash : trash and restore RPCs
 
-class "public.expenses" as Expenses <<table>> {
-  id: text
-  account_id: text
-  account_name: text
-  amount: numeric
-  date: text
-  payment_method: text
-  receipt_url: text
-  description: text
-  created_at: timestamptz
-  --
-  +addExpense()
-  +deleteExpense()
-}
-
-class "public.orders" as Orders <<table>> {
-  id: text
-  order_number: text
-  customer_name: text
-  items: jsonb
-  total_amount: numeric
-  status: text
-  discount: numeric
-  amount_tendered: numeric
-  change_amount: numeric
-  payment_method: text
-  created_at: timestamptz
-  updated_at: timestamptz
-  --
-  +completePosSale()
-  +normalizeOrder()
-  +exins_sync_customer_purchase()
-}
-
-class "public.transactions" as Transactions <<table>> {
-  id: text
-  date: text
-  flow_type: text
-  category: text
-  account: text
-  description: text
-  payment_method: text
-  inflow: numeric
-  outflow: numeric
-  order_id: text
-  expense_id: text
-  created_at: timestamptz
-  --
-  +addTransaction()
-  +deleteTransaction()
-}
-
-class "public.customers" as Customers <<table>> {
-  id: text
-  customer_name: text
-  total_purchase: numeric
-}
-
-class "public.item_logs" as ItemLogs <<table>> {
-  id: text
-  product_id: text
-  product_name: text
-  type: text
-  quantity: numeric
-  date: text
-  notes: text
-  created_at: timestamptz
-  status: text
-  found_quantity: numeric
-  found_date: text
-  found_notes: text
-  --
-  +logItemStatus()
-  +updateItemStatusLog()
-  +deleteItemStatusLog()
-}
-
-class "public.exbin_trash" as ExbinTrash <<table>> {
-  id: uuid
-  table_name: text
-  record_id: text
-  record_data: jsonb
-  deleted_by: uuid
-  deleted_at: timestamptz
-  expires_at: timestamptz
-  --
-  +moveRecordsToTrash()
-  +fetchTrashItems()
-  +restoreTrashItems()
-  +exins_purge_expired_trash()
-}
-
-class "public.exbin_archive" as ExbinArchive <<table>> {
-  archive_id: bigint
-  trash_id: text
-  table_name: text
-  record_id: text
-  record_data: jsonb
-  deleted_at: timestamptz
-  expires_at: timestamptz
-  archived_at: timestamptz
-}
-
-class "public.audit_logs" as AuditLogs <<table>> {
-  id: bigint
-  table_name: text
-  record_id: text
-  action: text
-  actor_id: uuid
-  actor_name: text
-  actor_email: text
-  actor_role: text
-  occurred_at: timestamptz
-  --
-  +capture_status_log()
-}
-
-Suppliers ..> Bales : supplier_id
-Categories ..> Bales : category
-Categories ..> Products : category
-Bales ..> Products : bale_code
-Products ..> ItemLogs : product_id
-ExpenseAccounts ..> Expenses : account_id
-Orders ..> Transactions : order_id
-Expenses ..> Transactions : expense_id
-Products ..> Orders : items jsonb snapshots
-Orders ..> Customers : purchase summary trigger
-Users ..> AuthUsers : uid
-AuditLogs ..> AuthUsers : actor_id
-ExbinTrash "0..*" --> "1" AuthUsers : deleted_by FK
-
-note bottom of ExbinTrash
-  PKs, the unique users.uid and exbin_archive.trash_id,
-  NOT NULL/default/CHECK constraints match the supplied SQL.
-  Dashed links are logical references; deleted_by is the
-  foreign key. items is JSONB, not a separate table.
+note bottom of UserProfile
+  Representative attributes only.
+  Guest is app-only. Other data links are logical, not
+  SQL foreign keys, except exbin_trash.deleted_by.
+end note
+note bottom of OrderItem
+  Embedded JSONB value, not a separate table.
+end note
+note bottom of AuditLogs
+  Optional SQL feature; SQL allows admin/staff, while
+  the application uses owner/staff.
 end note
 @enduml

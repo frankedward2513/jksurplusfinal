@@ -1,9 +1,15 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import {
+  Lightbulb,
+  Loader2,
+  Sparkles,
   TrendingUp,
-  Info,
 } from 'lucide-react';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export const ForecastingView: React.FC = () => {
   const { orders, transactions, categories, products } = useStore();
@@ -13,6 +19,13 @@ export const ForecastingView: React.FC = () => {
   const [forecastPeriod, setForecastPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [forecastHorizon, setForecastHorizon] = useState(3);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [aiForecastInsight, setAiForecastInsight] = useState<string | null>(null);
+  const [isAiInsightFallback, setIsAiInsightFallback] = useState(false);
+  const [aiInsightFallbackReason, setAiInsightFallbackReason] = useState<
+    'missing-api-key' | 'provider-error' | null
+  >(null);
+  const [isLoadingAiInsight, setIsLoadingAiInsight] = useState(false);
+  const [aiInsightError, setAiInsightError] = useState<string | null>(null);
   const horizonOptions =
     forecastPeriod === 'daily' ? [1, 3, 7] : forecastPeriod === 'weekly' ? [1, 2, 4, 8] : [1, 3, 6, 12];
 
@@ -203,9 +216,7 @@ export const ForecastingView: React.FC = () => {
   const periodLabelPlural = `${periodLabel}s`;
   const periodUnit = forecastPeriod === 'daily' ? 'd' : forecastPeriod === 'weekly' ? 'w' : 'mo';
   const periodTitle = forecastPeriod === 'daily' ? 'Day' : forecastPeriod === 'weekly' ? 'Week' : 'Month';
-  const historicalRange = forecastPeriod === 'daily' ? '30 days' : forecastPeriod === 'weekly' ? '12 weeks' : '12 months';
-
-  const forecastInsight = useMemo(() => {
+  const forecastInsightContext = useMemo(() => {
     const historyWindow = ewmaData.historyPoints.slice(-Math.min(3, ewmaData.historyPoints.length));
     const recentAverage = historyWindow.length
       ? historyWindow.reduce((sum, point) => sum + point.actual, 0) / historyWindow.length
@@ -213,25 +224,87 @@ export const ForecastingView: React.FC = () => {
     const nextAverage = ewmaData.forecastPoints.length
       ? ewmaData.forecastPoints.reduce((sum, point) => sum + point.predicted, 0) / ewmaData.forecastPoints.length
       : 0;
-    const changePercent = recentAverage > 0 ? ((nextAverage - recentAverage) / recentAverage) * 100 : 0;
-    const direction = changePercent >= 0 ? 'higher' : 'lower';
-    const categoryText = selectedCategory === 'all' ? 'storewide sales' : `${selectedCategory} sales`;
-    const horizonText =
-      forecastPeriod === 'daily'
-        ? `the next ${forecastHorizon} days`
-        : forecastPeriod === 'weekly'
-          ? `the next ${forecastHorizon} weeks`
-          : `the next ${forecastHorizon} months`;
-
-    const summary = Math.abs(changePercent) < 5
-      ? `Sales are holding steady for ${categoryText}, with little change expected ${horizonText}.`
-      : `Projected ${categoryText} are expected to be ${Math.abs(changePercent).toFixed(1)}% ${direction} ${horizonText}.`;
-
+    const recentAverageRounded = Math.round(recentAverage);
+    const nextAverageRounded = Math.round(nextAverage);
     return {
-      summary,
-      note: `Based on the last ${historicalRange} of EWMA trend data, the forecast is tracking ${direction} than the recent average.`,
+      category: selectedCategory === 'all' ? 'All store categories combined' : selectedCategory,
+      interval: forecastPeriod,
+      forecastHorizon,
+      recentActualAverage: recentAverageRounded,
+      averageForecast: nextAverageRounded,
+      forecastChangePercent: recentAverageRounded > 0
+        ? Number((((nextAverageRounded - recentAverageRounded) / recentAverageRounded) * 100).toFixed(1))
+        : null,
+      recentActuals: ewmaData.historyPoints.slice(-7).map(({ dateStr, actual }) => ({
+        date: dateStr,
+        sales: actual,
+      })),
+      projectedSales: ewmaData.forecastPoints.map(({ dateStr, predicted }) => ({
+        date: dateStr,
+        sales: predicted,
+      })),
     };
-  }, [ewmaData, selectedCategory, forecastPeriod, forecastHorizon, historicalRange]);
+  }, [ewmaData, selectedCategory, forecastPeriod, forecastHorizon]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let isCurrentRequest = true;
+
+    const loadAiInsight = async () => {
+      setIsLoadingAiInsight(true);
+      setAiForecastInsight(null);
+      setIsAiInsightFallback(false);
+      setAiInsightFallbackReason(null);
+      setAiInsightError(null);
+
+      try {
+        const response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            mode: 'forecast-insight',
+            prompt: 'Analyze this sales forecast for the selected category and interval. Return exactly two short paragraphs: one labeled "Insight:" summarizing the trend, and one labeled "Recommendation:" containing exactly one practical action for the shop owner. Base both only on the supplied data. If there is not enough sales history, say so and make the recommendation appropriate to that limitation.',
+            contextData: forecastInsightContext,
+          }),
+        });
+        const data: unknown = await response.json();
+
+        if (!response.ok) {
+          const message = isRecord(data) && typeof data.error === 'string'
+            ? data.error
+            : 'Could not generate the AI forecast insight.';
+          throw new Error(message);
+        }
+        if (!isRecord(data) || typeof data.text !== 'string' || !data.text.trim()) {
+          throw new Error('Gemini returned an empty forecast insight.');
+        }
+        if (isCurrentRequest) {
+          setAiForecastInsight(data.text.trim());
+          setIsAiInsightFallback(data.fallback === true);
+          setAiInsightFallbackReason(
+            data.fallbackReason === 'missing-api-key' || data.fallbackReason === 'provider-error'
+              ? data.fallbackReason
+              : null
+          );
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        console.error('AI forecast insight request failed:', error);
+        if (isCurrentRequest) {
+          setAiInsightError(error instanceof Error ? error.message : 'Could not generate the AI forecast insight.');
+        }
+      } finally {
+        if (isCurrentRequest) setIsLoadingAiInsight(false);
+      }
+    };
+
+    void loadAiInsight();
+    return () => {
+      isCurrentRequest = false;
+      controller.abort();
+    };
+  }, [forecastInsightContext]);
 
   // SVG dimensions for EWMA line graph
   const maxSales = Math.max(
@@ -599,11 +672,38 @@ export const ForecastingView: React.FC = () => {
 
             <div className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-3 text-left">
               <div className="flex items-start gap-2">
-                <Info className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" />
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" />
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300">Forecast Insight</p>
-                  <p className="mt-1 text-sm font-medium text-stone-100">{forecastInsight.summary}</p>
-                  <p className="mt-1 text-xs text-stone-400">{forecastInsight.note}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300">
+                    {isAiInsightFallback ? 'Forecast Insight (data-based fallback)' : 'Gemini AI Forecast Insight'}
+                  </p>
+                  {isLoadingAiInsight ? (
+                    <p className="mt-2 flex items-center gap-2 text-sm text-stone-300" aria-live="polite">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Analyzing the selected forecast...
+                    </p>
+                  ) : aiInsightError ? (
+                    <p className="mt-2 text-sm text-red-300" role="alert">{aiInsightError}</p>
+                  ) : aiForecastInsight ? (
+                    <div className="mt-2 space-y-2">
+                      <p className="whitespace-pre-line text-sm font-medium text-stone-100">{aiForecastInsight}</p>
+                      {isAiInsightFallback && (
+                        <p className="text-xs text-stone-400">
+                          {aiInsightFallbackReason === 'missing-api-key'
+                            ? 'The server is missing GEMINI_API_KEY. Add it to the server environment and redeploy. This insight was calculated from the forecast data.'
+                            : aiInsightFallbackReason === 'provider-error'
+                              ? 'The Gemini request failed. Check the server logs. This insight was calculated from the forecast data.'
+                              : 'Gemini is unavailable. This insight was calculated from the forecast data.'}
+                        </p>
+                      )}
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-orange-200">
+                        <Lightbulb className="h-3.5 w-3.5 shrink-0" />
+                        Includes one data-based recommendation
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-stone-300">No AI forecast insight is available.</p>
+                  )}
                 </div>
               </div>
             </div>

@@ -9,6 +9,7 @@ interface ChatMessage {
   sender: 'user' | 'ai';
   text: string;
   timestamp: string;
+  fallbackReason?: 'missing-api-key' | 'provider-error';
 }
 
 export const AiChatbotView: React.FC = () => {
@@ -264,12 +265,18 @@ export const AiChatbotView: React.FC = () => {
         data.text && !data.fallback
           ? data.text
           : getLiveDatabaseAnswer(textToSend.trim());
+      const fallbackReason = data.fallback
+        ? data.fallbackReason === 'missing-api-key'
+          ? 'missing-api-key'
+          : 'provider-error'
+        : undefined;
 
       const aiMessage: ChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'ai',
         text: replyText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        fallbackReason,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -280,6 +287,7 @@ export const AiChatbotView: React.FC = () => {
         sender: 'ai',
         text: getLiveDatabaseAnswer(textToSend.trim()),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        fallbackReason: 'provider-error',
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -385,6 +393,13 @@ export const AiChatbotView: React.FC = () => {
               >
                 {m.text}
               </div>
+              {m.fallbackReason && (
+                <p className="text-[10px] text-amber-300 px-1">
+                  {m.fallbackReason === 'missing-api-key'
+                    ? 'Local fallback: the server is missing GEMINI_API_KEY.'
+                    : 'Local fallback: the Gemini request failed; check server logs.'}
+                </p>
+              )}
               <span className="text-[10px] text-stone-500 px-1 inline-block">{m.timestamp}</span>
             </div>
           </div>
