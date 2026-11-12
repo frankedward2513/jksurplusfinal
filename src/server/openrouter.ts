@@ -111,6 +111,28 @@ function fallbackForecastAnswer(contextData: unknown): string {
   return `Insight: Sales for ${category} averaged ₱${recentAverage.toLocaleString()} per ${interval} recently. The forecast is expected to ${trend}, at ${forecastText}.\n\nRecommendation: ${recommendation}`;
 }
 
+function ensureForecastRecommendation(text: string, contextData: unknown): string {
+  const recommendationHeading = /\bRecommendations?\s*:\s*/i.exec(text);
+  if (recommendationHeading) {
+    const insight = text.slice(0, recommendationHeading.index).trim();
+    const recommendation = text.slice(recommendationHeading.index + recommendationHeading[0].length).trim();
+    if (recommendation) {
+      return `${insight}${insight ? '\n\n' : ''}Recommendation: ${recommendation}`;
+    }
+  }
+
+  const fallbackAnswer = fallbackForecastAnswer(contextData);
+  const fallbackHeading = /\bRecommendation:\s*/i.exec(fallbackAnswer);
+  const fallbackRecommendation = fallbackHeading
+    ? fallbackAnswer.slice(fallbackHeading.index + fallbackHeading[0].length).trim()
+    : 'Compare actual sales with the forecast before changing the replenishment plan.';
+  const insight = recommendationHeading
+    ? text.slice(0, recommendationHeading.index).trim()
+    : text.trim();
+
+  return `${insight}${insight ? '\n\n' : ''}Recommendation: ${fallbackRecommendation}`;
+}
+
 export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRouterApiResult> {
   const data: RequestData = isRecord(payload) ? payload : {};
   const prompt = typeof data.prompt === 'string' ? data.prompt.trim() : '';
@@ -183,11 +205,14 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
       }
     }
 
-    const text = responseText.trim();
+    const generatedText = responseText.trim();
 
-    if (!text) {
+    if (!generatedText) {
       throw new Error('OpenRouter returned an empty response.');
     }
+    const text = isForecastRequest
+      ? ensureForecastRecommendation(generatedText, data.contextData)
+      : generatedText;
 
     return {
       status: 200,
