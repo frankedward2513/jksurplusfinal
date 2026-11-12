@@ -3,15 +3,15 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import dotenv from 'dotenv';
-import { handleGeminiRequest } from './src/server/gemini.ts';
+import { handleOpenRouterRequest } from './src/server/openrouter.ts';
 
 dotenv.config();
 
-function geminiApiPlugin(): Plugin {
+function openRouterApiPlugin(): Plugin {
   return {
-    name: 'gemini-api-plugin',
+    name: 'openrouter-api-plugin',
     configureServer(server) {
-      server.middlewares.use('/api/gemini', async (req, res) => {
+      server.middlewares.use('/api/ai', async (req, res) => {
         if (req.method === 'POST') {
           let body = '';
           req.on('data', (chunk) => {
@@ -27,7 +27,7 @@ function geminiApiPlugin(): Plugin {
               return;
             }
 
-            const result = await handleGeminiRequest(payload);
+            const result = await handleOpenRouterRequest(payload);
             res.writeHead(result.status, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(result.body));
           });
@@ -42,7 +42,7 @@ function geminiApiPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss(), geminiApiPlugin()],
+    plugins: [react(), tailwindcss(), openRouterApiPlugin()],
     envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     resolve: {
       alias: {

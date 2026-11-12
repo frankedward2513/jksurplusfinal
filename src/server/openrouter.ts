@@ -1,7 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
+import { OpenRouter } from '@openrouter/sdk';
 import { isInventoryOrExpenseQuestion, OUT_OF_SCOPE_REPLY } from '../utils/aiChatScope.ts';
 
-const GEMINI_SYSTEM_INSTRUCTION = [
+const CHAT_SYSTEM_INSTRUCTION = [
   'You are the shop assistant for EXINS Jksur+ Novaliches.',
   'Only answer questions about this shop’s inventory and expenses, including products, stock, categories, bales, suppliers, purchase costs, expense records, and budgets.',
   'If any part of a request is outside that scope, do not answer that part. Briefly say you can only help with this shop’s inventory and expenses.',
@@ -24,7 +24,7 @@ type RequestData = {
   mode?: unknown;
 };
 
-type GeminiApiResult = {
+type OpenRouterApiResult = {
   status: number;
   body: {
     text?: string;
@@ -42,7 +42,7 @@ function numberValue(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function fallbackAnswer(contextData: unknown): string {
+function fallbackChatAnswer(contextData: unknown): string {
   const context = isRecord(contextData) ? contextData : {};
   const inventory = isRecord(context.inventorySummary) ? context.inventorySummary : {};
   const expenses = isRecord(context.expensesSummary) ? context.expensesSummary : {};
@@ -102,13 +102,13 @@ function fallbackForecastAnswer(contextData: unknown): string {
   const recommendation = change > 5
     ? `Review current stock levels for products in ${inventoryScope} against your usual reorder criteria before ordering; a higher sales forecast alone does not confirm a stock shortage.`
     : change < -5
-      ? 'Use the next interval to monitor actual sales before increasing replenishment for this category.'
+      ? `Use the next interval to monitor actual sales before increasing replenishment for ${inventoryScope}.`
       : 'Keep the current replenishment plan and compare actual sales with the forecast at the next interval.';
 
   return `Insight: Sales for ${category} averaged ₱${recentAverage.toLocaleString()} per ${interval} recently. The forecast is expected to ${trend}, at ${forecastText}.\n\nRecommendation: ${recommendation}`;
 }
 
-export async function handleGeminiRequest(payload: unknown): Promise<GeminiApiResult> {
+export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRouterApiResult> {
   const data: RequestData = isRecord(payload) ? payload : {};
   const prompt = typeof data.prompt === 'string' ? data.prompt.trim() : '';
   const isForecastRequest = data.mode === 'forecast-insight';
@@ -124,23 +124,14 @@ export async function handleGeminiRequest(payload: unknown): Promise<GeminiApiRe
     return { status: 200, body: { text: OUT_OF_SCOPE_REPLY } };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) {
-    if (isForecastRequest) {
-      return {
-        status: 200,
-        body: {
-          text: fallbackForecastAnswer(data.contextData),
-          fallback: true,
-          fallbackReason: 'missing-api-key',
-        },
-      };
-    }
-
     return {
       status: 200,
       body: {
-        text: fallbackAnswer(data.contextData),
+        text: isForecastRequest
+          ? fallbackForecastAnswer(data.contextData)
+          : fallbackChatAnswer(data.contextData),
         fallback: true,
         fallbackReason: 'missing-api-key',
       },
@@ -148,41 +139,45 @@ export async function handleGeminiRequest(payload: unknown): Promise<GeminiApiRe
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const model = process.env.OPENROUTER_MODEL?.trim() ||
+      'nvidia/nemotron-3-ultra-550b-a55b:free';
+    const openrouter = new OpenRouter({
+      apiKey,
+      appTitle: 'EXINS Inventory and Forecasting',
+      httpReferer: process.env.APP_URL?.trim() || undefined,
+    });
     const fullPrompt = `${
       data.contextData ? `[CURRENT STORE DATA CONTEXT: ${JSON.stringify(data.contextData)}]\n\n` : ''
     }[${isForecastRequest ? 'FORECAST INSIGHT REQUEST' : 'SHOP QUESTION'}]\n${prompt}`;
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: fullPrompt,
-      config: {
-        systemInstruction: isForecastRequest ? FORECAST_SYSTEM_INSTRUCTION : GEMINI_SYSTEM_INSTRUCTION,
+    const response = await openrouter.chat.send({
+      chatRequest: {
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: isForecastRequest ? FORECAST_SYSTEM_INSTRUCTION : CHAT_SYSTEM_INSTRUCTION,
+          },
+          { role: 'user', content: fullPrompt },
+        ],
+        stream: false,
       },
     });
-    const text = response.text?.trim();
+    const content = response.choices[0]?.message.content;
+    const text = typeof content === 'string' ? content.trim() : '';
 
     if (!text) {
-      throw new Error('Gemini returned an empty response.');
+      throw new Error('OpenRouter returned an empty response.');
     }
 
     return { status: 200, body: { text } };
   } catch (error: unknown) {
-    console.error('Gemini API Error:', error);
-    if (isForecastRequest) {
-      return {
-        status: 200,
-        body: {
-          text: fallbackForecastAnswer(data.contextData),
-          fallback: true,
-          fallbackReason: 'provider-error',
-        },
-      };
-    }
-
+    console.error('OpenRouter API Error:', error);
     return {
       status: 200,
       body: {
-        text: fallbackAnswer(data.contextData),
+        text: isForecastRequest
+          ? fallbackForecastAnswer(data.contextData)
+          : fallbackChatAnswer(data.contextData),
         fallback: true,
         fallbackReason: 'provider-error',
       },

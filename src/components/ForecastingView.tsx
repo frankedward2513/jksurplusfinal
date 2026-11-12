@@ -6,6 +6,7 @@ import {
   Sparkles,
   TrendingUp,
 } from 'lucide-react';
+import { readAiApiResponse } from '../utils/readAiApiResponse';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -258,7 +259,7 @@ export const ForecastingView: React.FC = () => {
       setAiInsightError(null);
 
       try {
-        const response = await fetch('/api/gemini', {
+        const response = await fetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,
@@ -268,7 +269,7 @@ export const ForecastingView: React.FC = () => {
             contextData: forecastInsightContext,
           }),
         });
-        const data: unknown = await response.json();
+        const data = await readAiApiResponse(response);
 
         if (!response.ok) {
           const message = isRecord(data) && typeof data.error === 'string'
@@ -675,7 +676,7 @@ export const ForecastingView: React.FC = () => {
                 <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-orange-300" />
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300">
-                    {isAiInsightFallback ? 'Forecast Insight (data-based fallback)' : 'Gemini AI Forecast Insight'}
+                    {isAiInsightFallback ? 'Forecast Insight (data-based fallback)' : 'OpenRouter AI Forecast Insight'}
                   </p>
                   {isLoadingAiInsight ? (
                     <p className="mt-2 flex items-center gap-2 text-sm text-stone-300" aria-live="polite">
@@ -690,10 +691,10 @@ export const ForecastingView: React.FC = () => {
                       {isAiInsightFallback && (
                         <p className="text-xs text-stone-400">
                           {aiInsightFallbackReason === 'missing-api-key'
-                            ? 'The server is missing GEMINI_API_KEY. Add it to the server environment and redeploy. This insight was calculated from the forecast data.'
+                            ? 'The server is missing OPENROUTER_API_KEY. Add it to the server environment and redeploy. This insight was calculated from the forecast data.'
                             : aiInsightFallbackReason === 'provider-error'
-                              ? 'The Gemini request failed. Check the server logs. This insight was calculated from the forecast data.'
-                              : 'Gemini is unavailable. This insight was calculated from the forecast data.'}
+                              ? 'The OpenRouter request failed. Check the server logs. This insight was calculated from the forecast data.'
+                              : 'OpenRouter is unavailable. This insight was calculated from the forecast data.'}
                         </p>
                       )}
                       <p className="flex items-center gap-1.5 text-xs font-semibold text-orange-200">

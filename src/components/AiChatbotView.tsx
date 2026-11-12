@@ -3,6 +3,7 @@ import { useStore } from '../context/StoreContext';
 import { Bot, Sparkles, Send, Trash2, ArrowRight } from 'lucide-react';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { isInventoryOrExpenseQuestion, OUT_OF_SCOPE_REPLY } from '../utils/aiChatScope';
+import { readAiApiResponse } from '../utils/readAiApiResponse';
 
 interface ChatMessage {
   id: string;
@@ -248,7 +249,7 @@ export const AiChatbotView: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/gemini', {
+      const response = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -257,15 +258,16 @@ export const AiChatbotView: React.FC = () => {
         }),
       });
 
-      const data = await response.json();
+      const data = await readAiApiResponse(response);
       if (!response.ok) {
         throw new Error(typeof data.error === 'string' ? data.error : 'The assistant request failed.');
       }
+      const apiText = typeof data.text === 'string' ? data.text : '';
       const replyText =
-        data.text && !data.fallback
-          ? data.text
+        apiText && data.fallback !== true
+          ? apiText
           : getLiveDatabaseAnswer(textToSend.trim());
-      const fallbackReason = data.fallback
+      const fallbackReason = data.fallback === true
         ? data.fallbackReason === 'missing-api-key'
           ? 'missing-api-key'
           : 'provider-error'
@@ -396,8 +398,8 @@ export const AiChatbotView: React.FC = () => {
               {m.fallbackReason && (
                 <p className="text-[10px] text-amber-300 px-1">
                   {m.fallbackReason === 'missing-api-key'
-                    ? 'Local fallback: the server is missing GEMINI_API_KEY.'
-                    : 'Local fallback: the Gemini request failed; check server logs.'}
+                    ? 'Local fallback: the server is missing OPENROUTER_API_KEY.'
+                    : 'Local fallback: the OpenRouter request failed; check server logs.'}
                 </p>
               )}
               <span className="text-[10px] text-stone-500 px-1 inline-block">{m.timestamp}</span>

@@ -1,0 +1,21 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { handleOpenRouterRequest } from '../src/server/openrouter';
+
+interface OpenRouterRequest extends IncomingMessage {
+  body?: unknown;
+}
+
+interface OpenRouterResponse extends ServerResponse {
+  status(code: number): OpenRouterResponse;
+  json(body: unknown): void;
+}
+
+export default async function handler(req: OpenRouterRequest, res: OpenRouterResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method Not Allowed' });
+    return;
+  }
+
+  const result = await handleOpenRouterRequest(req.body);
+  res.status(result.status).json(result.body);
+}
