@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { handleOpenRouterRequest } from '../src/server/openrouter';
 
 interface OpenRouterRequest extends IncomingMessage {
   body?: unknown;
@@ -16,6 +15,14 @@ export default async function handler(req: OpenRouterRequest, res: OpenRouterRes
     return;
   }
 
-  const result = await handleOpenRouterRequest(req.body);
-  res.status(result.status).json(result.body);
+  try {
+    const { handleOpenRouterRequest } = await import('../src/server/openrouter');
+    const result = await handleOpenRouterRequest(req.body);
+    res.status(result.status).json(result.body);
+  } catch (error: unknown) {
+    console.error('OpenRouter serverless function failed:', error);
+    res.status(500).json({
+      error: 'The OpenRouter server function failed. Check the Vercel function logs for details.',
+    });
+  }
 }
