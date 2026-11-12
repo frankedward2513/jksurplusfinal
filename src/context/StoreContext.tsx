@@ -864,6 +864,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   {
                     productId: matchedLog.productId,
                     name: matchedLog.productName,
+                    category: matchedProduct?.category,
                     size: matchedProduct?.size || 'Free Size',
                     price: matchedProduct?.sellingPrice || tx.inflow || 0,
                     costPrice: matchedProduct?.costPrice || 0,
@@ -1218,6 +1219,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const orderItems: OrderItem[] = params.items.map(({ product, quantity }) => ({
       productId: product.id,
       name: product.name,
+      category: product.category,
       size: product.size || 'Free Size',
       price: product.sellingPrice,
       costPrice: product.costPrice || 0,

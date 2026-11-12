@@ -49,6 +49,8 @@ export const ForecastingView: React.FC = () => {
   const ewmaData = useMemo(() => {
     const totalHistoryPeriods = forecastPeriod === 'daily' ? 30 : 12;
     const history: { dateStr: string; label: string; dayOfWeek: string; actual: number }[] = [];
+    const productCategories = new Map(products.map((product) => [product.id, product.category]));
+    const normalizeCategory = (category?: string) => category?.trim().toLocaleLowerCase() ?? '';
     const now = new Date();
     const formatDate = (date: Date) => {
       const year = date.getFullYear();
@@ -93,8 +95,8 @@ export const ForecastingView: React.FC = () => {
             periodSales += o.totalAmount;
           } else {
             o.items.forEach((it) => {
-              const prod = products.find((p) => p.id === it.productId);
-              if (prod?.category?.toLowerCase() === selectedCategory.toLowerCase()) {
+              const itemCategory = it.category || productCategories.get(it.productId);
+              if (normalizeCategory(itemCategory) === normalizeCategory(selectedCategory)) {
                 periodSales += it.price * it.quantity;
               }
             });

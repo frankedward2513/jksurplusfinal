@@ -97,6 +97,7 @@ export interface Expense {
 export interface OrderItem {
   productId: string;
   name: string;
+  category?: string;
   size: string;
   price: number;
   costPrice?: number;

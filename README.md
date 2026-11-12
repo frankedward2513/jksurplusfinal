@@ -12,7 +12,7 @@ The browser app connects directly to Supabase. In **Vercel → Project → Setti
 - `VITE_SUPABASE_URL` — the project's Supabase URL (`https://<project-ref>.supabase.co`)
 - `VITE_SUPABASE_PUBLISHABLE_KEY` — the project's publishable key (a legacy anon key is also supported)
 
-For the AI chatbot, also set `GEMINI_API_KEY` as a server-side environment variable in Vercel. Do not use a `VITE_` or `NEXT_PUBLIC_` prefix for this secret. The `/api/gemini` serverless function reads this value; without it, the chatbot provides a live-data summary instead of a Gemini-generated answer. Redeploy after changing environment variables.
+For the AI chatbot and AI-generated sales forecast insights, set `GEMINI_API_KEY` as a server-side environment variable in Vercel. Do not use a `VITE_` or `NEXT_PUBLIC_` prefix for this secret. The `/api/gemini` serverless function reads this value; without it, the chatbot provides a live-data summary and forecasting uses its local trend explanation instead of a Gemini-generated answer. Redeploy after changing environment variables.
 
 The existing `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` names are also supported. These are public browser credentials; **never** put a Supabase `service_role` or secret key in a `VITE_` or `NEXT_PUBLIC_` variable.
 
@@ -39,6 +39,9 @@ The app logs database failures in the browser console with the Supabase error co
 
 ## UML diagrams
 
+- [Application class diagram](./docs/application-class-diagram.puml) — PlantUML class diagram of EXINS roles, application views, shared store operations, business objects, and external services. Role subclasses are conceptual; the implementation stores a `UserRole` on `UserProfile`.
+- [Database/schema diagram](./docs/class-diagram.puml) — PlantUML overview of tables and constraints from the supplied schema SQL, plus the corresponding StoreContext and database routine operations.
+- [Database ER diagram](./docs/database-erd.puml) — PlantUML view of the Supabase tables, columns, embedded order items, and documented application-level references.
 - [Use case diagram](./docs/use-case-diagram.puml) — PlantUML source for the system's visitor, staff, owner, and external-service interactions.
 - [Customer activity diagram](./docs/customer-activity-diagram.puml) — PlantUML source for viewing and browsing products, searching, and filtering the public shop showcase by category and maximum budget.
 - [Admin activity diagram](./docs/admin-activity-diagram.puml) — PlantUML activity diagram for the store owner's sign-in, dashboard, inventory, POS, finance, forecasting, AI assistant, and shop showcase workflows.
