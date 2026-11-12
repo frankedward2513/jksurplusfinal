@@ -32,9 +32,6 @@ type OpenRouterApiResult = {
     fallbackReason?: 'missing-api-key' | 'provider-error';
     providerStatus?: number;
     error?: string;
-    usage?: {
-      reasoningTokens?: number;
-    };
   };
 };
 
@@ -120,19 +117,9 @@ function fallbackForecastAnswer(contextData: unknown): string {
 
 function ensureForecastRecommendation(text: string, contextData: unknown): string {
   const recommendationHeading = /\bRecommendations?\s*:\s*/i.exec(text);
-  const context = isRecord(contextData) ? contextData : {};
-  const isSignificantChange = typeof context.forecastChangePercent === 'number' &&
-    Number.isFinite(context.forecastChangePercent) &&
-    Math.abs(context.forecastChangePercent) > 5;
-
   if (recommendationHeading) {
     const insight = text.slice(0, recommendationHeading.index).trim();
-    const modelRecommendation = text.slice(recommendationHeading.index + recommendationHeading[0].length).trim();
-    const fallbackAnswer = isSignificantChange ? fallbackForecastAnswer(contextData) : '';
-    const fallbackHeading = /\bRecommendation:\s*/i.exec(fallbackAnswer);
-    const recommendation = isSignificantChange && fallbackHeading
-      ? fallbackAnswer.slice(fallbackHeading.index + fallbackHeading[0].length).trim()
-      : modelRecommendation;
+    const recommendation = text.slice(recommendationHeading.index + recommendationHeading[0].length).trim();
     if (recommendation) {
       return `${insight}${insight ? '\n\n' : ''}Recommendation: ${recommendation}`;
     }
@@ -183,7 +170,6 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
   try {
     const model = process.env.OPENROUTER_MODEL?.trim() ||
       'nvidia/nemotron-3-ultra-550b-a55b:free';
-    const backupModel = 'nvidia/nemotron-3.5-lightning:free';
     const openrouter = new OpenRouter({
       apiKey,
       appTitle: 'EXINS Inventory and Forecasting',
@@ -192,9 +178,9 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
     const fullPrompt = `${
       data.contextData ? `[CURRENT STORE DATA CONTEXT: ${JSON.stringify(data.contextData)}]\n\n` : ''
     }[${isForecastRequest ? 'FORECAST INSIGHT REQUEST' : 'SHOP QUESTION'}]\n${prompt}`;
-    const stream = await openrouter.chat.send({
+    const response = await openrouter.chat.send({
       chatRequest: {
-        models: model === backupModel ? [model] : [model, backupModel],
+        model,
         maxTokens: isForecastRequest ? 1200 : 800,
         messages: [
           {
@@ -203,30 +189,11 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
           },
           { role: 'user', content: fullPrompt },
         ],
-        stream: true,
+        stream: false,
       },
     });
-    let responseText = '';
-    let reasoningTokens: number | undefined;
-
-    for await (const chunk of stream) {
-      if (chunk.error) {
-        throw Object.assign(
-          new Error(`OpenRouter stream error: ${chunk.error.message}`),
-          { statusCode: chunk.error.code }
-        );
-      }
-
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) responseText += content;
-
-      const reportedReasoningTokens = chunk.usage?.completionTokensDetails?.reasoningTokens;
-      if (typeof reportedReasoningTokens === 'number') {
-        reasoningTokens = reportedReasoningTokens;
-      }
-    }
-
-    const generatedText = responseText.trim();
+    const responseContent = response.choices[0]?.message.content;
+    const generatedText = typeof responseContent === 'string' ? responseContent.trim() : '';
 
     if (!generatedText) {
       throw new Error('OpenRouter returned an empty response.');
@@ -237,10 +204,7 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
 
     return {
       status: 200,
-      body: {
-        text,
-        ...(reasoningTokens === undefined ? {} : { usage: { reasoningTokens } }),
-      },
+      body: { text },
     };
   } catch (error: unknown) {
     console.error('OpenRouter API Error:', error);

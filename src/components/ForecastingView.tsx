@@ -336,13 +336,9 @@ export const ForecastingView: React.FC = () => {
         }
         if (isCurrentRequest) {
           const parsedInsight = splitForecastInsight(data.text.trim());
-          const isSignificantChange = forecastInsightContext.forecastChangePercent !== null &&
-            Math.abs(forecastInsightContext.forecastChangePercent) > 5;
           setAiForecastInsight(parsedInsight.insight || data.text.trim());
           setAiForecastRecommendation(
-            isSignificantChange
-              ? getDataBasedRecommendation(forecastInsightContext)
-              : parsedInsight.recommendation || getDataBasedRecommendation(forecastInsightContext)
+            parsedInsight.recommendation || getDataBasedRecommendation(forecastInsightContext)
           );
           setIsAiInsightFallback(data.fallback === true);
           setAiInsightFallbackReason(

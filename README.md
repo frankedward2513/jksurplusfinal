@@ -12,7 +12,7 @@ The browser app connects directly to Supabase. In **Vercel → Project → Setti
 - `VITE_SUPABASE_URL` — the project's Supabase URL (`https://<project-ref>.supabase.co`)
 - `VITE_SUPABASE_PUBLISHABLE_KEY` — the project's publishable key (a legacy anon key is also supported)
 
-For OpenRouter-powered chatbot answers and sales forecast insights, set `OPENROUTER_API_KEY` as a server-side environment variable in Vercel. Do not use a `VITE_` or `NEXT_PUBLIC_` prefix for this secret. Both features use the `/api/ai` serverless function and the `OPENROUTER_MODEL` setting; the default model is `nvidia/nemotron-3-ultra-550b-a55b:free`. The server uses streamed OpenRouter completions and assembles the final response for the existing UI. Without a valid key or when OpenRouter is unavailable, the chatbot and forecast show clearly labeled data-based fallbacks. Redeploy after changing environment variables.
+For OpenRouter-powered chatbot answers and sales forecast insights, set `OPENROUTER_API_KEY` as a server-side environment variable in Vercel. Do not use a `VITE_` or `NEXT_PUBLIC_` prefix for this secret. Both features use the `/api/ai` serverless function and the `OPENROUTER_MODEL` setting; the default model is `nvidia/nemotron-3-ultra-550b-a55b:free`. The server sends a single non-streaming OpenRouter request and returns its response to the existing UI. Without a valid key or when OpenRouter is unavailable, the chatbot and forecast show clearly labeled data-based fallbacks. Redeploy after changing environment variables.
 
 The existing `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` names are also supported. These are public browser credentials; **never** put a Supabase `service_role` or secret key in a `VITE_` or `NEXT_PUBLIC_` variable.
 
