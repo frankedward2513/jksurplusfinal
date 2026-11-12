@@ -278,7 +278,7 @@ export const ForecastingView: React.FC = () => {
           throw new Error(message);
         }
         if (!isRecord(data) || typeof data.text !== 'string' || !data.text.trim()) {
-          throw new Error('Gemini returned an empty forecast insight.');
+          throw new Error('OpenRouter returned an empty forecast insight.');
         }
         if (isCurrentRequest) {
           setAiForecastInsight(data.text.trim());

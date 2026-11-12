@@ -1,4 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { handleOpenRouterRequest } from '../src/server/openrouter.ts';
+
+export const config = {
+  maxDuration: 60,
+};
 
 interface OpenRouterRequest extends IncomingMessage {
   body?: unknown;
@@ -16,7 +21,6 @@ export default async function handler(req: OpenRouterRequest, res: OpenRouterRes
   }
 
   try {
-    const { handleOpenRouterRequest } = await import('../src/server/openrouter');
     const result = await handleOpenRouterRequest(req.body);
     res.status(result.status).json(result.body);
   } catch (error: unknown) {

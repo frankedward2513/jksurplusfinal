@@ -31,6 +31,9 @@ type OpenRouterApiResult = {
     fallback?: boolean;
     fallbackReason?: 'missing-api-key' | 'provider-error';
     error?: string;
+    usage?: {
+      reasoningTokens?: number;
+    };
   };
 };
 
@@ -149,9 +152,10 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
     const fullPrompt = `${
       data.contextData ? `[CURRENT STORE DATA CONTEXT: ${JSON.stringify(data.contextData)}]\n\n` : ''
     }[${isForecastRequest ? 'FORECAST INSIGHT REQUEST' : 'SHOP QUESTION'}]\n${prompt}`;
-    const response = await openrouter.chat.send({
+    const stream = await openrouter.chat.send({
       chatRequest: {
         model,
+        maxTokens: isForecastRequest ? 400 : 800,
         messages: [
           {
             role: 'system',
@@ -159,17 +163,39 @@ export async function handleOpenRouterRequest(payload: unknown): Promise<OpenRou
           },
           { role: 'user', content: fullPrompt },
         ],
-        stream: false,
+        stream: true,
       },
     });
-    const content = response.choices[0]?.message.content;
-    const text = typeof content === 'string' ? content.trim() : '';
+    let responseText = '';
+    let reasoningTokens: number | undefined;
+
+    for await (const chunk of stream) {
+      if (chunk.error) {
+        throw new Error(`OpenRouter stream error: ${chunk.error.message}`);
+      }
+
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) responseText += content;
+
+      const reportedReasoningTokens = chunk.usage?.completionTokensDetails?.reasoningTokens;
+      if (typeof reportedReasoningTokens === 'number') {
+        reasoningTokens = reportedReasoningTokens;
+      }
+    }
+
+    const text = responseText.trim();
 
     if (!text) {
       throw new Error('OpenRouter returned an empty response.');
     }
 
-    return { status: 200, body: { text } };
+    return {
+      status: 200,
+      body: {
+        text,
+        ...(reasoningTokens === undefined ? {} : { usage: { reasoningTokens } }),
+      },
+    };
   } catch (error: unknown) {
     console.error('OpenRouter API Error:', error);
     return {
