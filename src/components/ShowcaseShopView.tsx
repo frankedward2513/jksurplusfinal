@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import {
-  Calendar,
   ExternalLink,
   Filter,
   MapPin,
@@ -9,30 +8,13 @@ import {
   Phone,
   Search,
   Shirt,
-  Trophy,
 } from 'lucide-react';
 
-type ShowcaseMode = 'browse' | 'top_customers';
-type CustomerSpend = {
-  customerId: string;
-  customerName: string;
-  totalSpent: number;
-};
-
 export const ShowcaseShopView: React.FC = () => {
-  const { products, categories, orders } = useStore();
-  const [activeMode, setActiveMode] = useState<ShowcaseMode>('browse');
+  const { products, categories } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [maximumPrice, setMaximumPrice] = useState('');
-  const [topCustomerFilterType, setTopCustomerFilterType] = useState<'month' | 'custom'>('month');
-  const currentMonth = useMemo(() => {
-    const date = new Date();
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
 
   const availableProducts = useMemo(
     () => products.filter((product) => product.availableQuantity > 0),
@@ -68,50 +50,6 @@ export const ShowcaseShopView: React.FC = () => {
   );
   const hasAvailableProducts = availableProducts.length > 0;
 
-  const top10Customers = useMemo(() => {
-    const customerMap = new Map<string, CustomerSpend>();
-
-    orders.forEach((order) => {
-      if (order.status === 'cancelled') return;
-      const orderDate = new Date(order.createdAt);
-      if (Number.isNaN(orderDate.getTime())) return;
-
-      if (topCustomerFilterType === 'month') {
-        const [year, month] = selectedMonth.split('-').map(Number);
-        if (orderDate.getFullYear() !== year || orderDate.getMonth() !== month - 1) return;
-      } else {
-        if (customStartDate) {
-          const startDate = new Date(`${customStartDate}T00:00:00`);
-          if (orderDate < startDate) return;
-        }
-        if (customEndDate) {
-          const endDate = new Date(`${customEndDate}T23:59:59.999`);
-          if (orderDate > endDate) return;
-        }
-      }
-
-      const name = (order.customerName || 'Customer').trim().replace(/\s+/g, ' ');
-      const key = name.toLowerCase();
-      if (!key || ['walk-in', 'walk in', 'walk-in customer', 'walk in customer'].includes(key)) {
-        return;
-      }
-      const customer = customerMap.get(key) || {
-        customerId: key,
-        customerName: name,
-        totalSpent: 0,
-      };
-      customer.totalSpent += Number(order.totalAmount) || 0;
-      if (customer.customerName === 'Customer' && name !== 'Customer') {
-        customer.customerName = name;
-      }
-      customerMap.set(key, customer);
-    });
-
-    return Array.from(customerMap.values())
-      .sort((a, b) => b.totalSpent - a.totalSpent)
-      .slice(0, 10);
-  }, [orders, topCustomerFilterType, selectedMonth, customStartDate, customEndDate]);
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="space-y-5 rounded-3xl p-5 sm:p-6 glass-panel">
@@ -121,34 +59,6 @@ export const ShowcaseShopView: React.FC = () => {
             <p className="mt-1 text-sm font-medium italic text-amber-300">
               Your next outfit is hiding here.
             </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveMode('browse')}
-              aria-pressed={activeMode === 'browse'}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
-                activeMode === 'browse'
-                  ? 'bg-orange-600 text-white'
-                  : 'border border-orange-500/30 bg-stone-900/80 text-stone-200 hover:text-white'
-              }`}
-            >
-              <Shirt className="h-4 w-4" />
-              Browse Clothing
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveMode('top_customers')}
-              aria-pressed={activeMode === 'top_customers'}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
-                activeMode === 'top_customers'
-                  ? 'bg-orange-600 text-white'
-                  : 'border border-orange-500/30 bg-stone-900/80 text-stone-200 hover:text-white'
-              }`}
-            >
-              <Trophy className="h-4 w-4 text-amber-400" />
-              Top 10 Customers
-            </button>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-t border-orange-500/15 pt-4 text-xs text-stone-300">
@@ -170,9 +80,7 @@ export const ShowcaseShopView: React.FC = () => {
         </div>
       </div>
 
-      {activeMode === 'browse' ? (
-        <>
-          <section className="p-4 sm:p-5 rounded-2xl glass-panel space-y-4">
+      <section className="p-4 sm:p-5 rounded-2xl glass-panel space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[3fr_1fr]">
               <div className="flex min-w-0 flex-col gap-2">
                 <label htmlFor="showcase-search" className="text-xs font-semibold text-stone-300">
@@ -315,111 +223,6 @@ export const ShowcaseShopView: React.FC = () => {
               ))}
             </div>
           )}
-        </>
-      ) : (
-        <section className="mx-auto max-w-2xl space-y-6 rounded-3xl p-6 sm:p-8 glass-panel">
-          <h2 className="flex items-center gap-2.5 border-b border-orange-500/20 pb-4 text-xl font-black text-white sm:text-2xl">
-            <Trophy className="h-5 w-5 text-orange-400" />
-            Top 10 Customers
-          </h2>
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setTopCustomerFilterType('month')}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
-                  topCustomerFilterType === 'month'
-                    ? 'bg-orange-600 text-white'
-                    : 'border border-stone-800 bg-stone-900 text-stone-300'
-                }`}
-              >
-                <Calendar className="h-4 w-4" />
-                Select Month and Year
-              </button>
-              <button
-                type="button"
-                onClick={() => setTopCustomerFilterType('custom')}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
-                  topCustomerFilterType === 'custom'
-                    ? 'bg-orange-600 text-white'
-                    : 'border border-stone-800 bg-stone-900 text-stone-300'
-                }`}
-              >
-                <Calendar className="h-4 w-4" />
-                Custom Date Range
-              </button>
-            </div>
-            {topCustomerFilterType === 'month' ? (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-orange-500/20 bg-stone-950/60 p-3.5 text-xs">
-                <label htmlFor="top-customers-month" className="font-medium text-stone-300">
-                  Month &amp; Year:
-                </label>
-                <input
-                  type="month"
-                  aria-label="Choose month and year"
-                  value={selectedMonth}
-                  onChange={(event) => setSelectedMonth(event.target.value)}
-                  className="showcase-custom-date cursor-pointer rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-white"
-                />
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-orange-500/20 bg-stone-950/60 p-3.5 text-xs">
-                <label className="flex items-center gap-2 text-stone-400">
-                  Start Date:
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(event) => setCustomStartDate(event.target.value)}
-                    className="showcase-custom-date rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-1.5 text-white"
-                  />
-                </label>
-                <label className="flex items-center gap-2 text-stone-400">
-                  End Date:
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(event) => setCustomEndDate(event.target.value)}
-                    className="showcase-custom-date rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-1.5 text-white"
-                  />
-                </label>
-                {(customStartDate || customEndDate) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCustomStartDate('');
-                      setCustomEndDate('');
-                    }}
-                    className="rounded-xl bg-stone-800 px-3 py-1.5 text-stone-300 hover:text-white"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="space-y-2">
-            {top10Customers.length === 0 ? (
-              <div className="rounded-2xl border border-stone-800 bg-stone-950/40 py-10 text-center text-sm font-semibold text-white">
-                No customers found for this period
-              </div>
-            ) : (
-              top10Customers.map((customer, index) => (
-                <div
-                  key={customer.customerId}
-                  className="flex items-center gap-3.5 rounded-2xl border border-orange-500/20 bg-stone-950/70 p-3.5"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-500/30 bg-stone-900 font-mono text-xs font-bold text-orange-400">
-                    {index + 1}
-                  </span>
-                  <span className="truncate text-sm font-bold text-white sm:text-base">
-                    {customer.customerName}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-      )}
     </div>
   );
 };

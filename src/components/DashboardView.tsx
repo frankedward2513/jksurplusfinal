@@ -16,12 +16,28 @@ import {
   CalendarDays,
   ReceiptText,
   Boxes,
+  Trophy,
 } from 'lucide-react';
 import { PAGE_SIZE, Pagination } from './Pagination';
 import type { ActiveTab } from './Navbar';
 import { addMissingPosInflows, getLocalDateKey, isDateWithinFilter } from '../utils/financialInflow';
 
 type DateFilterPreset = 'all' | 'today' | 'last7' | 'this_month' | 'custom';
+
+const MONTH_OPTIONS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 interface DashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -43,6 +59,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
   const [monthlyBreakdownPage, setMonthlyBreakdownPage] = useState(1);
+  const [topCustomersMonth, setTopCustomersMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   const allInflowTransactions = useMemo(
     () => addMissingPosInflows(transactions, orders).filter((transaction) => transaction.flowType === 'inflow'),
@@ -165,6 +185,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     (monthlyBreakdownPage - 1) * PAGE_SIZE,
     monthlyBreakdownPage * PAGE_SIZE,
   );
+
+  const topCustomers = useMemo(() => {
+    const monthMatch = /^(\d{4})-(\d{2})$/.exec(topCustomersMonth);
+    if (!monthMatch) return [];
+    const year = Number(monthMatch[1]);
+    const month = Number(monthMatch[2]) - 1;
+    if (month < 0 || month > 11) return [];
+
+    const customerTotals = new Map<string, { name: string; totalSpent: number }>();
+
+    orders.forEach((order) => {
+      if (order.status === 'cancelled') return;
+      const orderDate = new Date(order.createdAt);
+      if (
+        Number.isNaN(orderDate.getTime()) ||
+        orderDate.getFullYear() !== year ||
+        orderDate.getMonth() !== month
+      ) {
+        return;
+      }
+
+      const name = (order.customerName || '').trim().replace(/\s+/g, ' ');
+      const key = name.toLowerCase();
+      if (
+        !key ||
+        ['walk-in', 'walk in', 'walk-in customer', 'walk in customer'].includes(key)
+      ) {
+        return;
+      }
+
+      const customer = customerTotals.get(key) || { name, totalSpent: 0 };
+      customer.totalSpent += Number(order.totalAmount) || 0;
+      customerTotals.set(key, customer);
+    });
+
+    return [...customerTotals.values()]
+      .sort((a, b) => b.totalSpent - a.totalSpent || a.name.localeCompare(b.name))
+      .slice(0, 10);
+  }, [orders, topCustomersMonth]);
+
+  const topCustomerYears = useMemo(() => {
+    const years = new Set<number>([new Date().getFullYear(), Number(topCustomersMonth.slice(0, 4))]);
+    orders.forEach((order) => {
+      const orderDate = new Date(order.createdAt);
+      if (!Number.isNaN(orderDate.getTime())) years.add(orderDate.getFullYear());
+    });
+    return [...years].sort((a, b) => b - a);
+  }, [orders, topCustomersMonth]);
 
   const categoryPerformance = useMemo(() => {
     const quantityByCategory = new Map<string, number>();
@@ -859,6 +927,76 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+
+        <section aria-labelledby="dashboard-top-customers" className="space-y-4 rounded-2xl p-6 glass-panel">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-orange-500/20 pb-3">
+            <h2 id="dashboard-top-customers" className="flex items-center gap-2 text-lg font-bold text-white">
+              <Trophy className="h-5 w-5 text-amber-400" />
+              Top 10 Customers
+            </h2>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-stone-300">
+              <Calendar className="h-4 w-4 text-orange-400" />
+              <label htmlFor="dashboard-top-customers-month">Month</label>
+              <select
+                id="dashboard-top-customers-month"
+                value={topCustomersMonth.slice(5, 7)}
+                onChange={(event) =>
+                  setTopCustomersMonth(`${topCustomersMonth.slice(0, 4)}-${event.target.value}`)
+                }
+                className="cursor-pointer rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-white"
+              >
+                {MONTH_OPTIONS.map((month, index) => (
+                  <option key={month} value={String(index + 1).padStart(2, '0')}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+              <label htmlFor="dashboard-top-customers-year">Year</label>
+              <select
+                id="dashboard-top-customers-year"
+                value={topCustomersMonth.slice(0, 4)}
+                onChange={(event) =>
+                  setTopCustomersMonth(`${event.target.value}-${topCustomersMonth.slice(5, 7)}`)
+                }
+                className="cursor-pointer rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-white"
+              >
+                {topCustomerYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {!/^\d{4}-(0[1-9]|1[0-2])$/.test(topCustomersMonth) ? (
+            <p className="py-8 text-center text-sm text-stone-400">
+              Select a month and year to see top customers.
+            </p>
+          ) : topCustomers.length === 0 ? (
+            <p className="py-8 text-center text-sm text-stone-400">
+              No customer sales found for this month.
+            </p>
+          ) : (
+            <ol className="grid gap-2 sm:grid-cols-2">
+              {topCustomers.map((customer, index) => (
+                <li
+                  key={customer.name.toLowerCase()}
+                  className="flex min-w-0 items-center gap-3 rounded-xl border border-orange-500/15 bg-stone-950/50 p-3"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-orange-500/30 bg-stone-900 font-mono text-xs font-bold text-orange-300">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+                    {customer.name}
+                  </span>
+                  <span className="shrink-0 font-mono text-sm font-bold text-emerald-400">
+                    ₱{customer.totalSpent.toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
 
         <div className="p-4 sm:p-6 rounded-3xl glass-panel space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-orange-500/20 pb-3">

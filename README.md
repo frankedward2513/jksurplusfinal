@@ -39,7 +39,8 @@ The app logs database failures in the browser console with the Supabase error co
 
 ## UML diagrams
 
-- [Application class diagram](./docs/application-class-diagram.puml) — PlantUML class diagram of EXINS roles, application views, shared store operations, business objects, and external services. Role subclasses are conceptual; the implementation stores a `UserRole` on `UserProfile`.
+- [Application class diagram](./docs/application-class-diagram.md) — Mermaid domain class diagram of EXINS users, inventory, sales, and finance records, with key attributes, operations, and relationships. User roles are values of `UserRole`; they are not modeled as subclasses.
+- [Component diagram](./docs/component-diagram.md) — Mermaid diagram of the frontend, application logic, API integrations, and Supabase data layer.
 - [Database/schema diagram](./docs/class-diagram.puml) — PlantUML overview of tables and constraints from the supplied schema SQL, plus the corresponding StoreContext and database routine operations.
 - [Database ER diagram](./docs/database-erd.puml) — PlantUML view of the Supabase tables, columns, embedded order items, and documented application-level references.
 - [Use case diagram](./docs/use-case-diagram.puml) — PlantUML source for the system's visitor, staff, owner, and external-service interactions.
