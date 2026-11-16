@@ -32,7 +32,7 @@ export const AiChatbotView: React.FC = () => {
     {
       id: 'welcome-1',
       sender: 'ai',
-      text: 'Hi! I am your AI business assistant for EXINS Jksur+ Novaliches. I can analyze inventory, sales, categories, orders, suppliers, expenses, transactions, and forecasts using your store data. Customer names and supplier contact details are not sent to the AI.\n\nWhat would you like to know?',
+      text: "Hi! I'm Invexa, your AI business assistant for EXINS Jksur+ Novaliches. I can analyze inventory, sales, categories, orders, suppliers, expenses, transactions, and forecasts using your store data. Customer names and supplier contact details are not sent to the AI.\n\nWhat would you like to know?",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -329,7 +329,7 @@ export const AiChatbotView: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-white">Hi Im your AI Exins</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-white">Hi, I'm Invexa</h1>
               <span className="px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold tracking-widest uppercase border border-orange-500/30">
                 Store Business Assistant
               </span>
@@ -409,7 +409,7 @@ export const AiChatbotView: React.FC = () => {
             <div className="w-7 h-7 rounded-xl bg-orange-600/30 flex items-center justify-center text-orange-400 animate-spin">
               <Bot className="w-4 h-4" />
             </div>
-            <span>AI Exins is analyzing your store data...</span>
+            <span>Invexa is analyzing your store data...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -449,7 +449,7 @@ export const AiChatbotView: React.FC = () => {
         onClose={() => setIsClearConfirmOpen(false)}
         onConfirm={executeClearChat}
         title="Clear Chat Conversation?"
-        message="Are you sure you want to clear your conversation with Hi Im your AI Exins? If you clicked this by accident, click Cancel to keep your conversation."
+        message="Are you sure you want to clear your conversation with Invexa? If you clicked this by accident, click Cancel to keep your conversation."
         itemName="Active Chat Session"
         confirmText="Yes, Clear Chat"
         cancelText="Cancel"

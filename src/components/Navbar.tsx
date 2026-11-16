@@ -61,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Define navigation items without numbers and with Hi Im your AI Exins
+  // Define navigation items without numbers and with Invexa
   const getNavItems = () => {
     if (currentUser.role === 'owner') {
       return [
@@ -69,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         { id: 'inventory' as ActiveTab, label: 'Inventory Management', icon: Boxes },
         { id: 'finance' as ActiveTab, label: 'Finance Management', icon: DollarSign },
         { id: 'forecasting' as ActiveTab, label: 'Sales Forecast', icon: TrendingUp },
-        { id: 'ai_chat' as ActiveTab, label: 'Hi Im your AI Exins', icon: Sparkles },
+        { id: 'ai_chat' as ActiveTab, label: 'Invexa', icon: Sparkles },
       ];
     } else if (currentUser.role === 'staff') {
       return [
