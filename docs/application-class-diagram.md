@@ -1,6 +1,6 @@
-# EXINS Domain Class Diagram
+# EXINS Class Diagram
 
-The diagram shows the main business records, their key attributes, and the operations associated with them. Operations are design responsibilities; the TypeScript models themselves are data interfaces.
+This version omits `StoreContext` and includes attributes and operations on the domain classes. The data fields reflect the project's TypeScript models; methods are UML operations representing the actions available in the application, not methods currently declared on the TypeScript interfaces. `Admin` represents the application's `owner` role. Multiplicities are marked on every relationship; links without stored foreign keys use conceptual cardinalities.
 
 ```mermaid
 classDiagram
@@ -13,20 +13,17 @@ classDiagram
     customer
     guest
   }
-
   class AuthProvider {
     <<enumeration>>
     email
     google
   }
-
   class BaleStatus {
     <<enumeration>>
     sealed
     opened
     depleted
   }
-
   class OrderStatus {
     <<enumeration>>
     pending
@@ -35,7 +32,6 @@ classDiagram
     completed
     cancelled
   }
-
   class PaymentMethod {
     <<enumeration>>
     cash
@@ -43,13 +39,11 @@ classDiagram
     bank_transfer
     card
   }
-
   class TransactionFlow {
     <<enumeration>>
     inflow
     outflow
   }
-
   class ItemStatusType {
     <<enumeration>>
     sold
@@ -57,206 +51,258 @@ classDiagram
     damaged
     lost
   }
-
   class ItemResolutionStatus {
     <<enumeration>>
     lost
     found
     resolved
   }
+  class VerificationStatus {
+    <<enumeration>>
+    pending
+    verified
+    expired
+  }
 
-  class UserProfile {
-    +string uid
-    +string email
-    +string displayName
-    +UserRole role
-    +string phone
-    +string address
-    +AuthProvider provider
-    +string createdAt
-    +login(email, password) boolean
-    +register(name, email, password) boolean
-    +loginWithGoogle() result
-    +completeGoogleSignUp() boolean
+  class User {
+    +uid : String
+    +email : String
+    +displayName : String
+    +role : UserRole
+    +isGuest? : Boolean
+    +phone? : String
+    +address? : String
+    +provider? : AuthProvider
+    +createdAt? : String
+    +login(email: String, password: String) Boolean
     +logout() void
+    +updateProfile() void
   }
-
-  class CustomerSummary {
-    +string id
-    +string customerName
-    +number totalPurchase
+  class Staff {
+    +userId : String
+    +manageBale(baleId: String) void
+    +processOrder(orderId: String) void
   }
-
+  class Admin {
+    +userId : String
+    +manageUsers() void
+    +manageBales() void
+    +manageExpenses() void
+    +reviewItemLogs() void
+    +manageExbin() void
+  }
+  class Customer {
+    +id : String
+    +customerName : String
+    +totalPurchase : Number
+    +placeOrder(items: OrderItem[]) Order
+    +calculateTotalPurchase() Number
+  }
+  class EmailVerification {
+    +email : String
+    +status : VerificationStatus
+    +sentAt : String
+    +verifiedAt? : String
+    +sendVerificationEmail() void
+    +verifyEmail(token: String) Boolean
+    +resendVerificationEmail() void
+  }
   class Supplier {
-    +string id
-    +string name
-    +string contactPerson
-    +string email
-    +string phone
-    +string address
-    +string description
-    +number totalBalesSourced
+    +id : String
+    +name : String
+    +contactPerson : String
+    +email : String
+    +phone : String
+    +address : String
+    +description : String
+    +totalBalesSourced : Number
+    +createdAt : String
     +addSupplier() void
     +updateSupplier() void
     +deleteSupplier() void
   }
-
   class Bale {
-    +string id
-    +string baleCode
-    +string baleName
-    +string category
-    +string supplierId
-    +string supplierName
-    +number totalPurchasePrice
-    +number quantityPurchase
-    +number pricePerPiece
-    +BaleStatus status
-    +number totalSalesMade
+    +id : String
+    +baleCode : String
+    +baleName : String
+    +category : String
+    +supplierId : String
+    +supplierName : String
+    +totalPurchasePrice : Number
+    +quantityPurchase : Number
+    +pricePerPiece : Number
+    +description : String
+    +status : BaleStatus
+    +totalSalesMade : Number
+    +createdAt : String
     +addBale() void
     +updateBale() void
     +deleteBale() void
+    +calculateRemainingQuantity() Number
   }
-
-  class Category {
-    +string id
-    +string name
-    +string description
-    +string color
-    +number totalInStock
-    +addCategory() void
-    +updateCategory() void
-    +deleteCategory() void
-  }
-
   class Product {
-    +string id
-    +string name
-    +string category
-    +string baleCode
-    +string baleName
-    +number availableQuantity
-    +number sellingPrice
-    +number costPrice
-    +string size
-    +string imageUrl
-    +string productLink
-    +string description
-    +string barcode
+    +id : String
+    +name : String
+    +category : String
+    +baleCode : String
+    +baleName : String
+    +availableQuantity : Number
+    +sellingPrice : Number
+    +costPrice : Number
+    +size : String
+    +imageUrl : String
+    +productLink : String
+    +description : String
+    +barcode : String
+    +createdAt : String
     +addProduct() void
     +updateProduct() void
     +deleteProduct() void
+    +adjustStock(quantity: Number) void
   }
-
-  class Order {
-    +string id
-    +string orderNumber
-    +string customerName
-    +number totalAmount
-    +OrderStatus status
-    +number discount
-    +number amountTendered
-    +number changeAmount
-    +PaymentMethod paymentMethod
-    +string createdAt
-    +string updatedAt
-    +completeSale() Order
+  class Category {
+    +id : String
+    +name : String
+    +description : String
+    +color : String
+    +totalInStock : Number
+    +createdAt : String
+    +addCategory() void
+    +updateCategory() void
+    +deleteCategory() void
+    +calculateTotalInStock() Number
   }
-
-  class OrderItem {
-    +string productId
-    +string name
-    +string category
-    +string size
-    +number price
-    +number costPrice
-    +number quantity
-    +string imageUrl
-    +string baleCode
-  }
-
   class ExpenseAccount {
-    +string id
-    +string name
-    +number monthlyBudget
-    +string description
-    +number totalSpent
-    +string color
+    +id : String
+    +name : String
+    +monthlyBudget : Number
+    +description : String
+    +totalSpent : Number
+    +color? : String
+    +createdAt : String
     +addExpenseAccount() void
     +updateExpenseAccount() void
     +deleteExpenseAccount() void
+    +calculateRemainingBudget() Number
   }
-
   class Expense {
-    +string id
-    +string accountId
-    +string accountName
-    +number amount
-    +string date
-    +PaymentMethod paymentMethod
-    +string receiptUrl
-    +string description
+    +id : String
+    +accountId : String
+    +accountName : String
+    +amount : Number
+    +date : String
+    +paymentMethod : PaymentMethod
+    +receiptUrl? : String
+    +description : String
+    +createdAt : String
     +addExpense() void
     +deleteExpense() void
+    +calculateTotal() Number
   }
-
   class Transaction {
-    +string id
-    +string date
-    +TransactionFlow flowType
-    +string category
-    +string account
-    +string description
-    +PaymentMethod paymentMethod
-    +number inflow
-    +number outflow
-    +string orderId
-    +string expenseId
+    +id : String
+    +date : String
+    +flowType : TransactionFlow
+    +category : String
+    +account : String
+    +description : String
+    +paymentMethod : PaymentMethod
+    +inflow : Number
+    +outflow : Number
+    +orderId? : String
+    +expenseId? : String
+    +createdAt : String
     +addTransaction() void
     +deleteTransaction() void
+    +calculateNetAmount() Number
   }
-
-  class ItemStatusLog {
-    +string id
-    +string productId
-    +string productName
-    +ItemStatusType type
-    +number quantity
-    +string date
-    +string notes
-    +ItemResolutionStatus status
-    +number foundQuantity
-    +string foundDate
-    +string foundNotes
+  class Order {
+    +id : String
+    +orderNumber : String
+    +customerName : String
+    +items : OrderItem[]
+    +totalAmount : Number
+    +status : OrderStatus
+    +discount? : Number
+    +amountTendered? : Number
+    +changeAmount? : Number
+    +paymentMethod? : PaymentMethod
+    +createdAt : String
+    +updatedAt? : String
+    +calculateTotal() Number
+    +completeSale() void
+    +updateStatus(status: OrderStatus) void
+  }
+  class OrderItem {
+    +productId : String
+    +name : String
+    +category? : String
+    +size : String
+    +price : Number
+    +costPrice? : Number
+    +quantity : Number
+    +imageUrl? : String
+    +baleCode? : String
+    +calculateSubtotal() Number
+  }
+  class ItemLog {
+    +id : String
+    +productId : String
+    +productName : String
+    +type : ItemStatusType
+    +quantity : Number
+    +date : String
+    +notes? : String
+    +createdAt : String
+    +status? : ItemResolutionStatus
+    +foundQuantity? : Number
+    +foundDate? : String
+    +foundNotes? : String
     +logStatus() void
     +updateStatus() void
     +deleteStatusLog() void
   }
-
-  class TrashItem {
-    +string id
-    +string tableName
-    +string recordId
-    +JSON recordData
-    +string deletedAt
-    +string expiresAt
+  class ExbinTrash {
+    +id : String
+    +tableName : String
+    +recordId : String
+    +recordData : Object
+    +deletedAt : String
+    +expiresAt : String
     +restore() void
+    +purgeExpired() void
+  }
+  class AuditLog {
+    +id : Number
+    +tableName : String
+    +recordId? : String
+    +action : String
+    +actorId? : String
+    +actorName : String
+    +actorEmail? : String
+    +actorRole : String
+    +occurredAt : String
+    +recordActivity() void
+    +getActivityLogs() AuditLog[]
   }
 
-  UserProfile ..> UserRole : role
-  Supplier "1" --> "0..*" Bale : supplies
-  Bale "0..1" --> "0..*" Product : source bale
-  Category "1" --> "0..*" Product : classifies
+  Staff "0..1" ..> "1" User : account
+  Admin "0..1" ..> "1" User : account
+  EmailVerification "0..*" ..> "1" Staff : verifies
+  EmailVerification "0..*" ..> "1" Admin : verifies
+  Staff "0..*" ..> "0..*" Bale : manages
+  Bale "1" ..> "0..*" Product : yields
+  Supplier "1" ..> "0..*" Bale : supplies
+  Category "1" ..> "0..*" Bale : classifies
+  Admin "0..*" ..> "0..*" Bale : manages
+  Admin "0..*" ..> "0..*" Expense : manages
+  ExpenseAccount "1" ..> "0..*" Expense : records
+  Expense "0..1" ..> "0..*" Transaction : creates
+  Customer "0..1" ..> "0..*" Order : places
+  Staff "0..1" ..> "0..*" Order : processes
+  Order "0..1" ..> "0..*" Transaction : creates
+  Admin "0..*" ..> "0..*" ItemLog : tracks
+  Admin "0..1" ..> "0..*" ExbinTrash : manages
+  ExbinTrash "0..1" ..> "0..*" AuditLog : logs
   Order "1" *-- "1..*" OrderItem : contains
-  OrderItem "0..*" ..> "0..1" Product : product reference
-  ExpenseAccount "1" --> "0..*" Expense : records
-  Order "0..1" <-- "0..*" Transaction : order reference
-  Expense "0..1" <-- "0..*" Transaction : expense reference
-  Product "0..1" <-- "0..*" ItemStatusLog : status history
-  Order ..> CustomerSummary : updates by customer name
-  TrashItem ..> Product : may store deleted record
-  TrashItem ..> Order : may store deleted record
-  TrashItem ..> Expense : may store deleted record
 ```
-
-Dashed relationships indicate application-level references; the database schema does not enforce foreign keys. User roles are values of `UserRole`, not separate user subclasses.

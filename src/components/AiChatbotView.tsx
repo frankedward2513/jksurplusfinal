@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Bot, Sparkles, Send, Trash2, ArrowRight } from 'lucide-react';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
-import { isInventoryOrExpenseQuestion, OUT_OF_SCOPE_REPLY } from '../utils/aiChatScope';
+import { isStoreBusinessQuestion, OUT_OF_SCOPE_REPLY } from '../utils/aiChatScope';
+import { buildAiBusinessContext, getLocalBusinessAnswer } from '../utils/aiBusinessContext';
 import { readAiApiResponse } from '../utils/readAiApiResponse';
 
 interface ChatMessage {
@@ -14,13 +15,24 @@ interface ChatMessage {
 }
 
 export const AiChatbotView: React.FC = () => {
-  const { products, bales, expenseAccounts, expenses, categories } = useStore();
+  const {
+    products,
+    bales,
+    expenseAccounts,
+    expenses,
+    categories,
+    suppliers,
+    orders,
+    transactions,
+    itemStatusLogs,
+    customers,
+  } = useStore();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome-1',
       sender: 'ai',
-      text: 'Hi! I am your AI Inventory & Expense Assistant for EXINS Jksur+ Novaliches. 👋\n\nI provide real-time database intelligence, financial audits, and strategic recommendations strictly for your store\'s Inventory (products, stock levels, categories, bales) and Expenses (disbursements, accounts, budgets).\n\nHow can I help optimize your store operations today?',
+      text: 'Hi! I am your AI business assistant for EXINS Jksur+ Novaliches. I can analyze inventory, sales, categories, orders, suppliers, expenses, transactions, and forecasts using your store data. Customer names and supplier contact details are not sent to the AI.\n\nWhat would you like to know?',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -34,9 +46,42 @@ export const AiChatbotView: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Build a scoped fallback answer from live inventory and expense data.
+  const contextData = useMemo(
+    () => buildAiBusinessContext({
+      products,
+      bales,
+      categories,
+      suppliers,
+      expenseAccounts,
+      expenses,
+      orders,
+      transactions,
+      itemStatusLogs,
+      customers,
+    }),
+    [
+      products,
+      bales,
+      categories,
+      suppliers,
+      expenseAccounts,
+      expenses,
+      orders,
+      transactions,
+      itemStatusLogs,
+      customers,
+    ],
+  );
+
+  // Use deterministic local analytics when the AI provider is unavailable.
   const getLiveDatabaseAnswer = (queryText: string): string => {
     const q = queryText.toLowerCase().trim();
+    if (
+      /\b(sales?|sold|selling|best.?sell|top.?sell|revenue|orders?|transactions?|profit|forecast|predict|next month|suppliers?|bales?|item status|status logs?|lost|damaged|returned|found|categories|category|products?|items?|expenses?|budgets?|spending|spent|disbursements?|recommendations?|suggestions?|advice|strategy|optimize|improve|reduce|cut|save|low stock|out of stock|restock|reorder)\b/.test(q)
+    ) {
+      return getLocalBusinessAnswer(queryText, contextData);
+    }
+
     const availableProducts = products.filter((p) => (p.availableQuantity || 0) > 0);
     const availableCategoryCount = new Set(availableProducts.map((p) => p.category).filter(Boolean)).size;
     const totalUnits = availableProducts.reduce((sum, p) => sum + (p.availableQuantity || 0), 0);
@@ -170,56 +215,6 @@ export const AiChatbotView: React.FC = () => {
       `Ask about a specific product, stock level, bale, expense account, or budget for details.`;
   };
 
-  // Context data payload strictly containing live database values
-  const availableProducts = products.filter((product) => (product.availableQuantity || 0) > 0);
-  const availableCategoryCount = new Set(availableProducts.map((product) => product.category).filter(Boolean)).size;
-  const contextData = {
-    storeName: 'EXINS Jksur+ Novaliches Quezon City',
-    productCount: availableProducts.length,
-    baleCount: bales.length,
-    categoryCount: availableCategoryCount,
-    totalExpenses: expenses.reduce((sum, e) => sum + (e.amount || 0), 0),
-    totalUnitsInStock: availableProducts.reduce((sum, p) => sum + (p.availableQuantity || 0), 0),
-    lowStockProducts: availableProducts
-      .filter((p) => (p.availableQuantity || 0) <= 3)
-      .map((p) => ({ name: p.name, code: p.barcode, stock: p.availableQuantity, price: p.sellingPrice, category: p.category })),
-    products: availableProducts.slice(0, 60).map((p) => ({
-      name: p.name,
-      category: p.category,
-      baleCode: p.baleCode || 'None',
-      size: p.size,
-      availableStock: p.availableQuantity,
-      sellingPrice: p.sellingPrice,
-      costPrice: p.costPrice || 0,
-    })),
-    bales: bales.map((b) => ({
-      code: b.baleCode,
-      name: b.baleName,
-      supplier: b.supplierName,
-      totalCost: b.totalPurchasePrice,
-      status: b.status,
-    })),
-    categories: categories.map((c) => ({
-      name: c.name,
-      totalStock: c.totalInStock || 0,
-    })),
-    expenseAccounts: expenseAccounts.map((a) => ({
-      name: a.name,
-      monthlyBudget: a.monthlyBudget,
-      totalSpent: a.totalSpent || 0,
-      budgetRemaining: Math.max(0, a.monthlyBudget - (a.totalSpent || 0)),
-      isOverBudget: (a.totalSpent || 0) > a.monthlyBudget,
-      percentageSpent: a.monthlyBudget > 0 ? `${(((a.totalSpent || 0) / a.monthlyBudget) * 100).toFixed(1)}%` : '0%',
-    })),
-    recentExpenses: expenses.slice(0, 15).map((e) => ({
-      date: e.date,
-      account: e.accountName,
-      amount: e.amount,
-      description: e.description,
-      paymentMethod: e.paymentMethod,
-    })),
-  };
-
   const handleSendMessage = async (customPrompt?: string) => {
     const textToSend = customPrompt || input;
     if (!textToSend.trim() || loading) return;
@@ -234,8 +229,7 @@ export const AiChatbotView: React.FC = () => {
     setMessages((prev) => [...prev, userMessage]);
     if (!customPrompt) setInput('');
 
-    // Strict guard: if the prompt is not related to store inventory, expenses, or business recommendations, refuse immediately
-    if (!isInventoryOrExpenseQuestion(textToSend)) {
+    if (!isStoreBusinessQuestion(textToSend)) {
       const refusalMsg: ChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'ai',
@@ -306,7 +300,7 @@ export const AiChatbotView: React.FC = () => {
       {
         id: 'welcome-reset',
         sender: 'ai',
-        text: 'Chat history cleared. Hi! I am your AI Inventory & Expense Assistant. What would you like to know or optimize regarding your store inventory, bales, or expenses?',
+        text: 'Chat history cleared. Ask me about inventory, sales, categories, orders, suppliers, expenses, transactions, forecasts, or stock status.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
     ]);
@@ -314,6 +308,9 @@ export const AiChatbotView: React.FC = () => {
   };
 
   const quickPrompts = [
+    'What are the best-selling categories for next month?',
+    'Which categories and products sold the most?',
+    'Show monthly sales, revenue, and estimated gross profit',
     'What are your top recommendations to reduce expenses?',
     'Which products need urgent restocking and reordering?',
     'What bale quantities and purchase costs are recorded?',
@@ -334,7 +331,7 @@ export const AiChatbotView: React.FC = () => {
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-white">Hi Im your AI Exins</h1>
               <span className="px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold tracking-widest uppercase border border-orange-500/30">
-                Inventory & Expense Assistant
+                Store Business Assistant
               </span>
             </div>
           </div>
@@ -412,7 +409,7 @@ export const AiChatbotView: React.FC = () => {
             <div className="w-7 h-7 rounded-xl bg-orange-600/30 flex items-center justify-center text-orange-400 animate-spin">
               <Bot className="w-4 h-4" />
             </div>
-            <span>Hi Im your AI Exins is reviewing inventory and expense data...</span>
+            <span>AI Exins is analyzing your store data...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -429,7 +426,7 @@ export const AiChatbotView: React.FC = () => {
         <input
           type="text"
           maxLength={2000}
-          placeholder="Ask about shop inventory or expenses..."
+          placeholder="Ask about sales, categories, stock, orders, suppliers, or expenses..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={loading}
