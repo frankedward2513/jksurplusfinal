@@ -33,7 +33,6 @@ export const FinanceManagementView: React.FC = () => {
     expenses,
     transactions,
     orders,
-    itemStatusLogs,
     products,
     addExpenseAccount,
     updateExpenseAccount,
@@ -450,52 +449,6 @@ export const FinanceManagementView: React.FC = () => {
   useEffect(() => {
     setExpenseAccountPage(1);
   }, [filteredExpenseAccounts]);
-
-  // Total Inflow, Total Outflow, Net Operating Outflow/Inflow
-  const summary = useMemo(() => {
-    const totalInflow = filteredTransactions
-      .filter((t) => t.flowType === 'inflow')
-      .reduce((sum, t) => sum + (t.inflow || 0), 0);
-
-    const totalOutflow = filteredTransactions
-      .filter((t) => t.flowType === 'outflow')
-      .reduce((sum, t) => sum + (t.outflow || 0), 0);
-
-    const netOperating = totalInflow - totalOutflow;
-
-    return { totalInflow, totalOutflow, netOperating };
-  }, [filteredTransactions]);
-
-  // Lost Products Metrics & Financial Valuation (Active lost items; if found, removed from lost)
-  const lostMetrics = useMemo(() => {
-    const lostLogs = itemStatusLogs.filter(
-      (log) =>
-        log.type === 'lost' &&
-        log.status !== 'found' &&
-        log.quantity > 0 &&
-        products.some(
-          (product) => product.id === log.productId && product.availableQuantity > 0,
-        )
-    );
-    let totalLostPieces = 0;
-    let totalLostValue = 0;
-
-    lostLogs.forEach((log) => {
-      const prod = products.find((p) => p.id === log.productId);
-      const price = prod ? prod.sellingPrice : 0;
-      totalLostPieces += log.quantity;
-      totalLostValue += price * log.quantity;
-    });
-
-    return {
-      totalRecords: lostLogs.length,
-      activeRecords: lostLogs.length,
-      totalLostPieces,
-      activeLostPieces: totalLostPieces,
-      totalLostValue,
-      activeLostValue: totalLostValue,
-    };
-  }, [itemStatusLogs, products]);
 
   // Export to Excel / CSV
   const handleExportExcel = () => {
@@ -1107,56 +1060,6 @@ export const FinanceManagementView: React.FC = () => {
       {/* ===================== TAB 3: TRANSACTION HISTORY ===================== */}
       {activeTab === 'history' && (
         <div className="space-y-6">
-          {/* Cash Flow Summary KPI Cards: Total Inflow, Total Outflow, Net Operating Outflow/Inflow, Lost */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl glass-panel relative overflow-hidden">
-              <span className="text-xs font-semibold uppercase text-stone-400">Total Inflow</span>
-              <div className="text-2xl font-black text-emerald-400 mt-1">
-                ₱{summary.totalInflow.toLocaleString()}
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500" />
-            </div>
-
-            <div className="p-5 rounded-2xl glass-panel relative overflow-hidden">
-              <span className="text-xs font-semibold uppercase text-stone-400">Total Outflow</span>
-              <div className="text-2xl font-black text-rose-400 mt-1">
-                ₱{summary.totalOutflow.toLocaleString()}
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-rose-500" />
-            </div>
-
-            <div className="p-5 rounded-2xl glass-panel relative overflow-hidden">
-              <span className="text-xs font-semibold uppercase text-stone-400">
-                Net Operating Outflow / Inflow
-              </span>
-              <div
-                className={`text-2xl font-black mt-1 ${
-                  summary.netOperating >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {summary.netOperating >= 0 ? '+' : ''}₱{summary.netOperating.toLocaleString()}
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-orange-500" />
-            </div>
-
-            {/* KPI Card: Lost */}
-            <div className="p-5 rounded-2xl glass-panel relative overflow-hidden flex flex-col justify-between group hover:border-amber-500/40 transition">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase text-stone-400">Lost Item</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30">
-                    {lostMetrics.activeLostPieces} pcs missing
-                  </span>
-                </div>
-                <div className="text-2xl font-black text-amber-400 mt-1">
-                  ₱{lostMetrics.activeLostValue.toLocaleString()}
-                </div>
-              </div>
-
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-500" />
-            </div>
-          </div>
-
           {/* Filters Bar & Export Button */}
           <div className="p-5 rounded-3xl glass-panel space-y-3 relative z-30">
             <div className="flex items-stretch">
