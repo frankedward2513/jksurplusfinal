@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import {
   collection,
   doc,
+  insertDoc,
   setDoc,
   updateDoc,
   onSnapshot,
@@ -510,7 +511,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
   const clearFormAlert = () => setFormAlert(null);
   const showMutationError = (action: string, item: string, error: unknown) => {
-    const detail = error instanceof Error ? error.message : String(error);
+    let detail: string;
+    if (error instanceof Error) {
+      detail = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      const errorRecord = error as Record<string, unknown>;
+      detail = ['code', 'message', 'details', 'hint']
+        .map((key) => errorRecord[key])
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .join(': ');
+      if (!detail) detail = JSON.stringify(error);
+    } else {
+      detail = String(error);
+    }
     showFormAlert(`Could not ${action} ${item}. ${detail}`, 'error');
   };
 
@@ -1345,7 +1358,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTransactions((prev) => [newTx, ...prev]);
 
     try {
-      await setDoc(doc(db, 'transactions', txId), cleanFirestoreData(newTx));
+      await insertDoc(doc(db, 'transactions', txId), cleanFirestoreData(newTx));
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `transactions/${txId}`);
       showMutationError('complete', 'POS sale', err);

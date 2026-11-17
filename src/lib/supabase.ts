@@ -83,6 +83,15 @@ export async function setDoc<T extends object>(
   if (error) throw error;
 }
 
+export async function insertDoc<T extends object>(
+  ref: { tableName: string; id: string },
+  data: T
+): Promise<void> {
+  const row = toSupabaseRecord(data);
+  const { error } = await supabase.from(ref.tableName).insert({ ...row, id: ref.id });
+  if (error) throw error;
+}
+
 export async function updateDoc<T extends object>(
   ref: { tableName: string; id: string },
   updates: Partial<T>
