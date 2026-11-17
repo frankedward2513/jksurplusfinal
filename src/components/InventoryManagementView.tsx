@@ -425,10 +425,17 @@ export const InventoryManagementView: React.FC = () => {
     return daysSinceMissing;
   };
 
+  const remainingProducts = useMemo(
+    () =>
+      products.filter((product) => {
+        const quantity = Number(product.availableQuantity);
+        return Number.isFinite(quantity) && quantity > 0;
+      }),
+    [products],
+  );
   const filteredProductsList = useMemo(() => {
-    return products
+    return remainingProducts
       .filter((p) => {
-        if (p.availableQuantity <= 0) return false;
         const q = productSearch.toLowerCase();
         return (
           p.name.toLowerCase().includes(q) ||
@@ -438,7 +445,7 @@ export const InventoryManagementView: React.FC = () => {
         );
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [products, productSearch, bales]);
+  }, [remainingProducts, productSearch, bales]);
   const filteredSuppliers = useMemo(() => {
     const query = supplierSearch.trim().toLocaleLowerCase();
     if (!query) return suppliers;
@@ -684,7 +691,7 @@ export const InventoryManagementView: React.FC = () => {
           <ShoppingBag className="w-4 h-4 text-orange-400 shrink-0" />
           <span className="truncate">Product List</span>
           <span className="inventory-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
-            {products.length}
+            {remainingProducts.length}
           </span>
         </button>
       </div>

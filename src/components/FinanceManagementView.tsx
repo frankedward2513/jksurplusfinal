@@ -529,7 +529,7 @@ export const FinanceManagementView: React.FC = () => {
           <History className="w-4 h-4 text-orange-400" />
           <span>Transaction History</span>
           <span className="finance-count-badge px-1.5 py-0.5 rounded-full bg-stone-950/60 text-[10px] font-mono shrink-0">
-            {transactions.length}
+            {filteredTransactions.length}
           </span>
         </button>
       </div>
