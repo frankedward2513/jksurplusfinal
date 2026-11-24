@@ -5,6 +5,10 @@ The dashboard shows up to 10 slow-moving products within each category. Successf
 
 The admin navigation's **Others** menu includes a Receipts page with paginated POS receipt history sorted newest to oldest. Receipts can be opened and printed from the table.
 
+## Learning material
+
+- [EXINS system build tutorial (PowerPoint)](./docs/EXINS-System-Build-Tutorial.pptx) — code-first walkthrough of the project setup, React structure, shared state, Supabase data flow, POS, finance, forecasting, Invexa, security, and deployment.
+
 ## Vercel and Supabase setup
 
 The browser app connects directly to Supabase. In **Vercel → Project → Settings → Environment Variables**, set:

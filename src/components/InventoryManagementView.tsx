@@ -557,21 +557,21 @@ export const InventoryManagementView: React.FC = () => {
   }, [activeTab, editTabToFocus]);
 
   // ===================== 4. BALE SUPPLIERS STATE =====================
-  const [supplierName, setSupplierName] = useState('');
-  const [contactPerson, setContactPerson] = useState('');
+  const [supplierCompanyName, setSupplierCompanyName] = useState('');
+  const [supplierContactPerson, setSupplierContactPerson] = useState('');
   const [supplierEmail, setSupplierEmail] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('');
   const [supplierAddress, setSupplierAddress] = useState('');
-  const [supplierDesc, setSupplierDesc] = useState('');
+  const [supplierDescription, setSupplierDescription] = useState('');
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
 
   const handleSaveSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supplierName.trim()) {
+    if (!supplierCompanyName.trim()) {
       showFormAlert('Please enter a supplier or company name.');
       return;
     }
-    if (!contactPerson.trim()) {
+    if (!supplierContactPerson.trim()) {
       showFormAlert('Please enter the supplier contact person.');
       return;
     }
@@ -586,43 +586,43 @@ export const InventoryManagementView: React.FC = () => {
 
     if (editingSupplierId) {
       await updateSupplier(editingSupplierId, {
-        name: supplierName.trim(),
-        contactPerson: contactPerson.trim(),
+        name: supplierCompanyName.trim(),
+        contactPerson: supplierContactPerson.trim(),
         email: supplierEmail.trim(),
         phone: supplierPhone.trim(),
         address: supplierAddress.trim(),
-        description: supplierDesc.trim(),
+        description: supplierDescription.trim(),
       });
       setEditingSupplierId(null);
     } else {
       await addSupplier({
-        name: supplierName.trim(),
-        contactPerson: contactPerson.trim(),
+        name: supplierCompanyName.trim(),
+        contactPerson: supplierContactPerson.trim(),
         email: supplierEmail.trim(),
         phone: supplierPhone.trim(),
         address: supplierAddress.trim(),
-        description: supplierDesc.trim(),
+        description: supplierDescription.trim(),
       });
     }
 
-    setSupplierName('');
-    setContactPerson('');
+    setSupplierCompanyName('');
+    setSupplierContactPerson('');
     setSupplierEmail('');
     setSupplierPhone('');
     setSupplierAddress('');
-    setSupplierDesc('');
+    setSupplierDescription('');
     setIsSupplierFormOpen(false);
   };
 
   const startEditSupplier = (s: Supplier) => {
     setIsSupplierFormOpen(true);
     setEditingSupplierId(s.id);
-    setSupplierName(s.name);
-    setContactPerson(s.contactPerson || '');
+    setSupplierCompanyName(s.name);
+    setSupplierContactPerson(s.contactPerson || '');
     setSupplierEmail(s.email || '');
     setSupplierPhone(formatContactNumber(s.phone || ''));
     setSupplierAddress(s.address || '');
-    setSupplierDesc(s.description || '');
+    setSupplierDescription(s.description || '');
     setActiveTab('suppliers');
     setEditTabToFocus('suppliers');
   };
@@ -726,26 +726,26 @@ export const InventoryManagementView: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
                 {/* Company Name */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Supplier / Company Name *</label>
+                  <label className="block font-medium text-stone-300 mb-1">Company Name*</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Apex Global Bales Trading"
-                    value={supplierName}
-                    onChange={(e) => setSupplierName(e.target.value)}
+                    value={supplierCompanyName}
+                    onChange={(e) => setSupplierCompanyName(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
                 </div>
 
                 {/* Contact Person */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Contact Person *</label>
+                  <label className="block font-medium text-stone-300 mb-1">Contact Person*</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Mr. Robert Tan"
-                    value={contactPerson}
-                    onChange={(e) => setContactPerson(e.target.value)}
+                    value={supplierContactPerson}
+                    onChange={(e) => setSupplierContactPerson(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
                 </div>
@@ -796,8 +796,8 @@ export const InventoryManagementView: React.FC = () => {
                 <textarea
                   rows={2}
                   placeholder="Notes on supplier payment terms, reliability, delivery speed..."
-                  value={supplierDesc}
-                  onChange={(e) => setSupplierDesc(e.target.value)}
+                  value={supplierDescription}
+                  onChange={(e) => setSupplierDescription(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none text-sm sm:text-xs transition-all duration-200"
                 />
               </div>
@@ -816,12 +816,12 @@ export const InventoryManagementView: React.FC = () => {
               type="button"
               onClick={() => {
                 setEditingSupplierId(null);
-                setSupplierName('');
-                setContactPerson('');
+                setSupplierCompanyName('');
+                setSupplierContactPerson('');
                 setSupplierEmail('');
                 setSupplierPhone('');
                 setSupplierAddress('');
-                setSupplierDesc('');
+                setSupplierDescription('');
                 setIsSupplierFormOpen(true);
               }}
               className="w-full p-4 rounded-2xl glass-panel border border-orange-500/25 text-orange-300 hover:bg-stone-800/60 font-bold text-sm transition cursor-pointer"
@@ -973,17 +973,7 @@ export const InventoryManagementView: React.FC = () => {
                     className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
                   />
                 </div>
-                {/* Description */}
-                <div>
-                  <label className="block font-medium text-stone-300 mb-1">Product Category Description</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Heavyweight genuine leather, winter jackets"
-                    value={categoryDesc}
-                    onChange={(e) => setCategoryDesc(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
-                  />
-                </div>
+
                 {/* Category Accent Color */}
                 <div>
                   <label className="block font-medium text-stone-300 mb-1">Category Color</label>
@@ -1002,6 +992,17 @@ export const InventoryManagementView: React.FC = () => {
                       className="flex-1 px-3 py-2 rounded-xl bg-stone-950 border border-orange-500/20 text-stone-100 font-mono text-xs focus:outline-none"
                     />
                   </div>
+                </div>
+                {/* Description */}
+                <div>
+                  <label className="block font-medium text-stone-300 mb-1">Product Category Description</label>
+                  <textarea
+                    rows={1}
+                    placeholder="e.g. Heavyweight genuine leather, winter jackets"
+                    value={categoryDesc}
+                    onChange={(e) => setCategoryDesc(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl bg-stone-950/80 border border-orange-500/25 text-stone-100 text-sm sm:text-xs focus:border-orange-500 focus:ring-2 focus:ring-orange-500/25 focus:outline-none transition-all duration-200"
+                  />
                 </div>
               </div>
               {/* Action Buttons */}
@@ -1168,7 +1169,7 @@ export const InventoryManagementView: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
                 {/* Bale Name */}
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Bale Name *</label>
+                  <label className="block font-medium text-stone-300 mb-1">Bale Name*</label>
                   <input
                     type="text"
                     required

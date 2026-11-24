@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import {
   Calendar,
@@ -63,6 +63,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const chartWrapperRef = useRef<HTMLDivElement>(null);
+  const chartScrollRef = useRef<HTMLDivElement>(null);
+  const [chartContainerWidth, setChartContainerWidth] = useState(850);
+  const [hoveredChartPoint, setHoveredChartPoint] = useState<{
+    dateStr: string;
+    label: string;
+    inflow: number;
+    outflow: number;
+    idx: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!chartWrapperRef.current) return;
+    const updateWidth = () => {
+      if (chartWrapperRef.current) {
+        const width = chartWrapperRef.current.clientWidth;
+        if (width > 0) setChartContainerWidth(width);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   const allInflowTransactions = useMemo(
     () => addMissingPosInflows(transactions, orders).filter((transaction) => transaction.flowType === 'inflow'),
@@ -377,30 +400,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
   // Graph points generation for the Line Graph (Sales Inflow vs Expense Outflow)
   const lineGraphData = useMemo(() => {
-    // Generate chronological daily totals for the last 10 days.
-    const pointsCount = 10;
     const points: { label: string; dateStr: string; inflow: number; outflow: number }[] = [];
     const now = new Date();
+    const todayKey = getLocalDateKey(
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+    );
+    const recentStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 9);
+    const recentStartKey = getLocalDateKey(
+      `${recentStart.getFullYear()}-${String(recentStart.getMonth() + 1).padStart(2, '0')}-${String(recentStart.getDate()).padStart(2, '0')}`,
+    );
+    if (!todayKey || !recentStartKey) return points;
 
-    for (let i = pointsCount - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(now.getDate() - i);
-      const dateStr = getLocalDateKey(d.toISOString())!;
+    const inflowsByDate: Record<string, number> = {};
+    const outflowsByDate: Record<string, number> = {};
+    let startDateKey = recentStartKey;
+
+    salesInflows.forEach((sale) => {
+      const dateKey = getLocalDateKey(sale.date);
+      if (!dateKey || dateKey > todayKey) return;
+      startDateKey = dateKey < startDateKey ? dateKey : startDateKey;
+      inflowsByDate[dateKey] = (inflowsByDate[dateKey] || 0) + sale.amount;
+    });
+
+    transactions.forEach((transaction) => {
+      if (transaction.flowType !== 'outflow') return;
+      const dateKey = getLocalDateKey(transaction.date || transaction.createdAt);
+      if (!dateKey || dateKey > todayKey) return;
+      startDateKey = dateKey < startDateKey ? dateKey : startDateKey;
+      outflowsByDate[dateKey] =
+        (outflowsByDate[dateKey] || 0) + (Number(transaction.outflow) || 0);
+    });
+
+    const [startYear, startMonth, startDay] = startDateKey.split('-').map(Number);
+    const startDate = new Date(startYear, startMonth - 1, startDay);
+    for (const d = startDate; d <= now; d.setDate(d.getDate() + 1)) {
+      const dateStr = getLocalDateKey(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      );
+      if (!dateStr) continue;
       const label = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
 
-      const dayInflows = salesInflows
-        .filter((sale) => getLocalDateKey(sale.date) === dateStr)
-        .reduce((sum, sale) => sum + sale.amount, 0);
-
-      const dayOutflows = transactions
-        .filter((t) => t.flowType === 'outflow' && getLocalDateKey(t.date || t.createdAt) === dateStr)
-        .reduce((sum, t) => sum + (Number(t.outflow) || 0), 0);
-
-      points.push({ label, dateStr, inflow: dayInflows, outflow: dayOutflows });
+      points.push({
+        label,
+        dateStr,
+        inflow: inflowsByDate[dateStr] || 0,
+        outflow: outflowsByDate[dateStr] || 0,
+      });
     }
 
     return points;
   }, [transactions, orders, salesInflows]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (chartScrollRef.current) {
+        chartScrollRef.current.scrollLeft = chartScrollRef.current.scrollWidth;
+      }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [lineGraphData, chartContainerWidth]);
 
   // SVG dimensions & scaling
   const maxVal = Math.max(
@@ -408,12 +466,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     1000
   );
   const chartHeight = 220;
-  const chartWidth = 720;
-  const padding = { top: 20, right: 30, bottom: 40, left: 60 };
-  const graphW = chartWidth - padding.left - padding.right;
+  const padding = { top: 20, right: 30, bottom: 40, left: 30 };
+  const availablePlotWidth = Math.max(340, chartContainerWidth - 68);
+  const pointGap = Math.max(
+    76,
+    Math.floor((availablePlotWidth - padding.left - padding.right) / 9),
+  );
+  const chartWidth = padding.left + padding.right + (lineGraphData.length - 1) * pointGap;
   const graphH = chartHeight - padding.top - padding.bottom;
 
-  const getX = (idx: number) => padding.left + (idx / (lineGraphData.length - 1)) * graphW;
+  const getX = (idx: number) => padding.left + idx * pointGap;
   const getY = (val: number) => padding.top + graphH - (val / maxVal) * graphH;
 
   const inflowPoints = lineGraphData.map((p, i) => `${getX(i)},${getY(p.inflow)}`).join(' ');
@@ -589,7 +651,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       </div>
 
       {/* Sales and Expense Comparison in a Line Graph with Legend */}
-      <div className="p-6 rounded-2xl glass-panel space-y-4">
+      <div ref={chartWrapperRef} className="p-6 rounded-2xl glass-panel space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-orange-500/20">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -611,84 +673,144 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* SVG Line Graph */}
-        <div className="w-full overflow-x-auto pt-4">
-          <div className="min-w-[680px]">
-            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-auto overflow-visible">
-              {/* Horizontal Grid lines */}
-              {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
-                const y = padding.top + graphH * (1 - pct);
-                const labelVal = Math.round(maxVal * pct);
+        {/* Pinned Y-Axis + Horizontally Scrollable Plot Area */}
+        <div className="relative rounded-2xl bg-stone-950/80 border border-stone-800/80 overflow-hidden">
+          <div className="flex items-stretch relative">
+            <div className="w-16 shrink-0 flex flex-col justify-between py-5 text-right pr-2 select-none border-r border-stone-800/80 z-10 bg-stone-950/90 backdrop-blur-sm">
+              {[1, 0.75, 0.5, 0.25, 0].map((pct, idx) => {
+                const value = Math.round(maxVal * pct);
                 return (
-                  <g key={idx}>
-                    <line
-                      x1={padding.left}
-                      y1={y}
-                      x2={chartWidth - padding.right}
-                      y2={y}
-                      stroke="rgba(249, 115, 22, 0.15)"
-                      strokeDasharray="4 4"
-                    />
-                    <text
-                      x={padding.left - 10}
-                      y={y + 4}
-                      textAnchor="end"
-                      className="text-[10px] fill-stone-400 font-mono"
-                    >
-                      ₱{labelVal.toLocaleString()}
-                    </text>
-                  </g>
+                  <div key={idx} className="text-[10px] font-mono text-stone-400">
+                    ₱{value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : value}
+                  </div>
                 );
               })}
+            </div>
 
-              {/* Inflow Line (Emerald) */}
-              <polyline
-                fill="none"
-                stroke="#10b981"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={inflowPoints}
-              />
+            <div
+              ref={chartScrollRef}
+              aria-label="Sales and expense history chart"
+              className="flex-1 min-w-0 overflow-x-auto scrollbar-thin scrollbar-thumb-orange-500/40 hover:scrollbar-thumb-orange-500 scrollbar-track-stone-900 pb-3 pt-2"
+            >
+              <div style={{ width: `${chartWidth}px` }}>
+                <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-auto overflow-visible select-none">
+                  {[0, 0.25, 0.5, 0.75, 1].map((pct, idx) => {
+                    const y = padding.top + graphH * (1 - pct);
+                    return (
+                      <line
+                        key={idx}
+                        x1={0}
+                        y1={y}
+                        x2={chartWidth}
+                        y2={y}
+                        stroke="rgba(249, 115, 22, 0.15)"
+                        strokeDasharray="4 4"
+                      />
+                    );
+                  })}
 
-              {/* Outflow Line (Rose) */}
-              <polyline
-                fill="none"
-                stroke="#f43f5e"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={outflowPoints}
-              />
+                  <polyline
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={inflowPoints}
+                  />
+                  <polyline
+                    fill="none"
+                    stroke="#f43f5e"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={outflowPoints}
+                  />
 
-              {/* Data points & X Labels */}
-              {lineGraphData.map((d, idx) => {
-                const x = getX(idx);
-                const yInflow = getY(d.inflow);
-                const yOutflow = getY(d.outflow);
+                  {lineGraphData.map((d, idx) => {
+                    const x = getX(idx);
+                    const yInflow = getY(d.inflow);
+                    const yOutflow = getY(d.outflow);
+                    const isHovered = hoveredChartPoint?.idx === idx;
 
-                return (
-                  <g key={idx}>
-                    {/* Inflow dot */}
-                    <circle cx={x} cy={yInflow} r="5" fill="#10b981" stroke="#064e3b" strokeWidth="2" />
-                    {/* Outflow dot */}
-                    <circle cx={x} cy={yOutflow} r="5" fill="#f43f5e" stroke="#881337" strokeWidth="2" />
-
-                    {/* X-axis label */}
-                    <text
-                      x={x}
-                      y={chartHeight - 12}
-                      textAnchor="middle"
-                      className="text-[10px] fill-stone-400 font-mono"
-                    >
-                      {d.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+                    return (
+                      <g
+                        key={d.dateStr}
+                        onMouseEnter={() => setHoveredChartPoint({ ...d, idx })}
+                        onMouseLeave={() => setHoveredChartPoint(null)}
+                        className="cursor-pointer"
+                      >
+                        <rect
+                          x={x - pointGap / 2}
+                          y={padding.top}
+                          width={pointGap}
+                          height={graphH}
+                          fill="transparent"
+                          pointerEvents="all"
+                        />
+                        {isHovered && (
+                          <line
+                            x1={x}
+                            y1={padding.top}
+                            x2={x}
+                            y2={padding.top + graphH}
+                            stroke="rgba(255, 255, 255, 0.3)"
+                            strokeDasharray="3 3"
+                          />
+                        )}
+                        <circle
+                          cx={x}
+                          cy={yInflow}
+                          r={isHovered ? 7 : 5}
+                          fill="#10b981"
+                          stroke="#064e3b"
+                          strokeWidth="2"
+                        />
+                        <circle
+                          cx={x}
+                          cy={yOutflow}
+                          r={isHovered ? 7 : 5}
+                          fill="#f43f5e"
+                          stroke="#881337"
+                          strokeWidth="2"
+                        />
+                        <text
+                          x={x}
+                          y={chartHeight - 12}
+                          textAnchor="middle"
+                          className="text-[10px] fill-stone-400 font-mono"
+                        >
+                          {d.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
+        {hoveredChartPoint && (
+          <div className="p-3 rounded-2xl bg-stone-900 border border-orange-500/30 flex flex-wrap items-center justify-between gap-3 text-xs animate-fade-in shadow-lg">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+              <span className="font-bold text-white text-sm">{hoveredChartPoint.label}</span>
+            </div>
+            <div className="flex items-center gap-4 font-mono">
+              <div>
+                <span className="text-emerald-400 text-[11px] block">Sales Inflow:</span>
+                <span className="font-black text-emerald-300 text-sm">
+                  ₱{hoveredChartPoint.inflow.toLocaleString()}
+                </span>
+              </div>
+              <div>
+                <span className="text-rose-400 text-[11px] block">Expense Outflow:</span>
+                <span className="font-black text-rose-300 text-sm">
+                  ₱{hoveredChartPoint.outflow.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Monthly Performance Breakdown Summary Table */}
