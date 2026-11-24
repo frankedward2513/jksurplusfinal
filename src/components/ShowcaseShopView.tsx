@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../context/StoreContext';
+import type { Product } from '../types';
 import {
   ExternalLink,
   Filter,
@@ -8,6 +9,7 @@ import {
   Phone,
   Search,
   Shirt,
+  X,
 } from 'lucide-react';
 
 export const ShowcaseShopView: React.FC = () => {
@@ -15,6 +17,23 @@ export const ShowcaseShopView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [maximumPrice, setMaximumPrice] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedProduct(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedProduct]);
 
   const availableProducts = useMemo(
     () => products.filter((product) => product.availableQuantity > 0),
@@ -167,9 +186,12 @@ export const ShowcaseShopView: React.FC = () => {
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredProducts.map((product) => (
-                <article
+                <button
                   key={product.id}
-                  className="group flex flex-col overflow-hidden rounded-3xl border border-orange-500/20 glass-panel glass-panel-hover"
+                  type="button"
+                  onClick={() => setSelectedProduct(product)}
+                  aria-label={`View details for ${product.name}`}
+                  className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-orange-500/20 text-left glass-panel glass-panel-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
                 >
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-950">
                     {product.imageUrl ? (
@@ -194,16 +216,6 @@ export const ShowcaseShopView: React.FC = () => {
                         <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-400">
                           {product.category || 'Apparel'}
                         </span>
-                        {product.productLink && (
-                          <a
-                            href={product.productLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-stone-400 transition hover:text-orange-400"
-                          >
-                            Visit Link <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
                       </div>
                       <h2 className="line-clamp-1 text-base font-bold leading-snug text-white">
                         {product.name}
@@ -212,17 +224,114 @@ export const ShowcaseShopView: React.FC = () => {
                         {product.description || 'Exclusive apparel from JKsur+.'}
                       </p>
                     </div>
-                    <div className="border-t border-stone-800/80 pt-3">
-                      <p className="text-[10px] uppercase text-stone-400">Price</p>
-                      <p className="font-mono text-lg font-black text-orange-400">
-                        ₱{product.sellingPrice.toLocaleString()}
-                      </p>
+                    <div className="flex items-end justify-between gap-3 border-t border-stone-800/80 pt-3">
+                      <div>
+                        <p className="text-[10px] uppercase text-stone-400">Price</p>
+                        <p className="font-mono text-lg font-black text-orange-400">
+                          ₱{product.sellingPrice.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase text-stone-400">Available</p>
+                        <p className="font-mono text-sm font-bold text-stone-200">
+                          {product.availableQuantity} pcs
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </article>
+                </button>
               ))}
             </div>
           )}
+
+      {selectedProduct && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm sm:p-6"
+          onClick={() => setSelectedProduct(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`showcase-product-${selectedProduct.id}`}
+            onClick={(event) => event.stopPropagation()}
+            className="grid h-[90vh] max-h-[850px] w-full max-w-5xl grid-rows-[minmax(180px,35vh)_minmax(0,1fr)] overflow-hidden rounded-3xl border border-orange-500/30 bg-stone-900 text-stone-100 shadow-2xl md:grid-cols-2 md:grid-rows-1"
+          >
+            <div className="relative min-h-0 bg-stone-950">
+              {selectedProduct.imageUrl ? (
+                <img
+                  src={selectedProduct.imageUrl}
+                  alt={selectedProduct.name}
+                  className="h-full w-full object-contain p-2"
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center text-stone-600">
+                  <Shirt className="mb-2 h-12 w-12 opacity-50" />
+                  <span className="text-sm">EXINS Fashion</span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedProduct(null)}
+                aria-label="Close product details"
+                autoFocus
+                className="absolute right-3 top-3 rounded-xl border border-stone-700 bg-stone-950/85 p-2 text-stone-300 transition hover:bg-stone-800 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="min-h-0 space-y-6 overflow-y-auto p-5 sm:p-7">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-orange-400">
+                  {selectedProduct.category || 'Apparel'}
+                </p>
+                <h2
+                  id={`showcase-product-${selectedProduct.id}`}
+                  className="break-words text-2xl font-black leading-tight text-white sm:text-3xl"
+                >
+                  {selectedProduct.name}
+                </h2>
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-300">
+                  {selectedProduct.description || 'Exclusive apparel from JKsur+.'}
+                </p>
+              </div>
+
+              <dl className="grid grid-cols-2 gap-3">
+                <div className="space-y-1 rounded-2xl border border-stone-800 bg-stone-950/60 p-4">
+                  <dt className="text-xs text-stone-400">Size</dt>
+                  <dd className="break-words font-semibold text-stone-100">
+                    {selectedProduct.size || 'Free Size'}
+                  </dd>
+                </div>
+                <div className="space-y-1 rounded-2xl border border-stone-800 bg-stone-950/60 p-4">
+                  <dt className="text-xs text-stone-400">Available quantity</dt>
+                  <dd className="font-mono font-semibold text-stone-100">
+                    {selectedProduct.availableQuantity.toLocaleString()} pcs
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="rounded-2xl border border-orange-500/20 bg-orange-950/20 p-4">
+                <p className="text-xs uppercase tracking-wide text-stone-400">Price</p>
+                <p className="mt-1 font-mono text-2xl font-black text-orange-400">
+                  ₱{selectedProduct.sellingPrice.toLocaleString()}
+                </p>
+              </div>
+
+              {selectedProduct.productLink && (
+                <a
+                  href={selectedProduct.productLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex max-w-full items-center gap-2 break-all text-sm font-semibold text-orange-400 transition hover:text-orange-300"
+                >
+                  Visit product link <ExternalLink className="h-4 w-4 shrink-0" />
+                </a>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };
