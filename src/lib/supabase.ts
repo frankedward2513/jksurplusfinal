@@ -16,6 +16,13 @@ if (!supabaseUrl || !supabasePublishableKey) {
   );
 }
 
+// Isolate cached records by project so switching databases cannot reuse stale data.
+const cacheNamespace = new URL(supabaseUrl).hostname.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+
+export function localCacheKey(key: string): string {
+  return `exins_${cacheNamespace}_${key}`;
+}
+
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabasePublishableKey);
 
 export const db = null;

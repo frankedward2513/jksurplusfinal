@@ -16,6 +16,7 @@ import {
   googleProvider,
   auth,
   supabase,
+  localCacheKey,
 } from '../lib/supabase';
 import {
   UserProfile,
@@ -251,7 +252,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const email = (user.email || '').trim().toLowerCase();
     if (!email) {
       setCurrentUser(GUEST_USER);
-      localStorage.removeItem('exins_user');
+      localStorage.removeItem(localCacheKey('user'));
       return;
     }
 
@@ -267,7 +268,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isGuest: false,
     };
     setCurrentUser(profile);
-    localStorage.setItem('exins_user', JSON.stringify(profile));
+    localStorage.setItem(localCacheKey('user'), JSON.stringify(profile));
   };
 
   useEffect(() => {
@@ -276,7 +277,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setAuthenticatedUser(session.user);
       } else {
         setCurrentUser(GUEST_USER);
-        localStorage.removeItem('exins_user');
+        localStorage.removeItem(localCacheKey('user'));
       }
     });
     return () => authListener.subscription.unsubscribe();
@@ -389,7 +390,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (!requiresEmailConfirmation) {
       setCurrentUser(customerUser);
-      localStorage.setItem('exins_user', JSON.stringify(customerUser));
+      localStorage.setItem(localCacheKey('user'), JSON.stringify(customerUser));
 
       try {
         await setDoc(doc(db, 'users', customerUser.uid), { ...cleanFirestoreData(customerUser), id: customerUser.uid });
@@ -450,53 +451,53 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { error } = await auth.signOut();
     if (error) throw error;
     setCurrentUser(GUEST_USER);
-    localStorage.removeItem('exins_user');
+    localStorage.removeItem(localCacheKey('user'));
   };
 
   // State collections - initialized strictly empty as requested: "Don’t add initial data because im the one who will add this, no limitation to add."
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [bales, setBales] = useState<Bale[]>(() => {
-    const saved = localStorage.getItem('exins_bales');
+    const saved = localStorage.getItem(localCacheKey('bales'));
     return saved ? JSON.parse(saved) : [];
   });
 
   const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('exins_categories');
+    const saved = localStorage.getItem(localCacheKey('categories'));
     return saved ? JSON.parse(saved) : [];
   });
 
   const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('exins_products');
+    const saved = localStorage.getItem(localCacheKey('products'));
     return saved ? JSON.parse(saved) : [];
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem('exins_suppliers');
+    const saved = localStorage.getItem(localCacheKey('suppliers'));
     return saved ? JSON.parse(saved) : [];
   });
 
   const [expenseAccounts, setExpenseAccounts] = useState<ExpenseAccount[]>(() => {
-    const saved = localStorage.getItem('exins_expense_accounts');
+    const saved = localStorage.getItem(localCacheKey('expense_accounts'));
     return saved ? JSON.parse(saved) : [];
   });
 
   const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('exins_expenses');
+    const saved = localStorage.getItem(localCacheKey('expenses'));
     return saved ? JSON.parse(saved) : [];
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('exins_orders');
+    const saved = localStorage.getItem(localCacheKey('orders'));
     return saved ? (JSON.parse(saved) as Order[]).map(normalizeOrder) : [];
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('exins_transactions');
+    const saved = localStorage.getItem(localCacheKey('transactions'));
     return saved ? JSON.parse(saved) : [];
   });
 
   const [itemStatusLogs, setItemStatusLogs] = useState<ItemStatusLog[]>(() => {
-    const saved = localStorage.getItem('exins_item_logs');
+    const saved = localStorage.getItem(localCacheKey('item_logs'));
     return saved ? JSON.parse(saved) : [];
   });
 
@@ -573,34 +574,34 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Sync state to localStorage cache
   useEffect(() => {
-    localStorage.removeItem('exins_customers');
+    localStorage.removeItem(localCacheKey('customers'));
   }, []);
   useEffect(() => {
-    localStorage.setItem('exins_bales', JSON.stringify(bales));
+    localStorage.setItem(localCacheKey('bales'), JSON.stringify(bales));
   }, [bales]);
   useEffect(() => {
-    localStorage.setItem('exins_categories', JSON.stringify(categories));
+    localStorage.setItem(localCacheKey('categories'), JSON.stringify(categories));
   }, [categories]);
   useEffect(() => {
-    localStorage.setItem('exins_products', JSON.stringify(products));
+    localStorage.setItem(localCacheKey('products'), JSON.stringify(products));
   }, [products]);
   useEffect(() => {
-    localStorage.setItem('exins_suppliers', JSON.stringify(suppliers));
+    localStorage.setItem(localCacheKey('suppliers'), JSON.stringify(suppliers));
   }, [suppliers]);
   useEffect(() => {
-    localStorage.setItem('exins_expense_accounts', JSON.stringify(expenseAccounts));
+    localStorage.setItem(localCacheKey('expense_accounts'), JSON.stringify(expenseAccounts));
   }, [expenseAccounts]);
   useEffect(() => {
-    localStorage.setItem('exins_expenses', JSON.stringify(expenses));
+    localStorage.setItem(localCacheKey('expenses'), JSON.stringify(expenses));
   }, [expenses]);
   useEffect(() => {
-    localStorage.setItem('exins_orders', JSON.stringify(orders));
+    localStorage.setItem(localCacheKey('orders'), JSON.stringify(orders));
   }, [orders]);
   useEffect(() => {
-    localStorage.setItem('exins_transactions', JSON.stringify(transactions));
+    localStorage.setItem(localCacheKey('transactions'), JSON.stringify(transactions));
   }, [transactions]);
   useEffect(() => {
-    localStorage.setItem('exins_item_logs', JSON.stringify(itemStatusLogs));
+    localStorage.setItem(localCacheKey('item_logs'), JSON.stringify(itemStatusLogs));
   }, [itemStatusLogs]);
   // Firestore real-time listeners on startup
   useEffect(() => {
@@ -625,7 +626,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setCategories(loaded);
         } else {
           // If Firestore is empty, check if we have local categories to persist into Firestore
-          const localSaved = localStorage.getItem('exins_categories');
+          const localSaved = localStorage.getItem(localCacheKey('categories'));
           if (localSaved) {
             try {
               const localCats: Category[] = JSON.parse(localSaved);
@@ -657,7 +658,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           setProducts(loaded);
         } else {
           // If Firestore is empty, check if we have local products to persist into Firestore
-          const localSaved = localStorage.getItem('exins_products');
+          const localSaved = localStorage.getItem(localCacheKey('products'));
           if (localSaved) {
             try {
               const localProds: Product[] = JSON.parse(localSaved);
@@ -706,7 +707,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const loaded: Expense[] = [];
         snapshot.forEach((d) => loaded.push({ ...(d.data() as Expense), id: d.id }));
         setExpenses(loaded);
-        localStorage.setItem('exins_expenses', JSON.stringify(loaded));
+        localStorage.setItem(localCacheKey('expenses'), JSON.stringify(loaded));
       },
       (error) => handleFirestoreError(error, OperationType.LIST, 'expenses')
     );
@@ -729,7 +730,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
           // 2. Existing orders in localStorage cache
           try {
-            const saved = localStorage.getItem('exins_orders');
+            const saved = localStorage.getItem(localCacheKey('orders'));
             if (saved) {
               const localList: Order[] = JSON.parse(saved);
               localList.map(normalizeOrder).forEach((o) => {
@@ -744,7 +745,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           loaded.forEach((o) => orderMap.set(o.id, normalizeOrder(o)));
 
           const merged = Array.from(orderMap.values());
-          localStorage.setItem('exins_orders', JSON.stringify(merged));
+          localStorage.setItem(localCacheKey('orders'), JSON.stringify(merged));
 
           // If there are locally created orders not yet in Firestore, sync them now
           const missingInCloud = merged.filter((o) => !loaded.some((ld) => ld.id === o.id));
@@ -766,7 +767,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const loaded: Transaction[] = [];
         snapshot.forEach((d) => loaded.push({ ...(d.data() as Transaction), id: d.id }));
         setTransactions(loaded);
-        localStorage.setItem('exins_transactions', JSON.stringify(loaded));
+        localStorage.setItem(localCacheKey('transactions'), JSON.stringify(loaded));
       },
       (error) => handleFirestoreError(error, OperationType.LIST, 'transactions')
     );
@@ -910,7 +911,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
           setOrders((prev) => {
             const updated = [restoredOrder, ...prev.filter((o) => o.id !== restoredOrder.id)];
-            localStorage.setItem('exins_orders', JSON.stringify(updated));
+            localStorage.setItem(localCacheKey('orders'), JSON.stringify(updated));
             return updated;
           });
           await setDoc(doc(db, 'orders', restoredOrder.id), cleanFirestoreData(restoredOrder)).catch(
