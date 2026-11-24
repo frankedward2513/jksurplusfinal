@@ -436,13 +436,13 @@ export const InventoryManagementView: React.FC = () => {
   const filteredProductsList = useMemo(() => {
     return remainingProducts
       .filter((p) => {
-        const q = productSearch.trim().toLocaleLowerCase();
-        return [
-          p.name,
-          getProductCategory(p.baleCode || '', p.category),
-          p.baleCode,
-          p.barcode,
-        ].some((value) => String(value ?? '').toLocaleLowerCase().includes(q));
+        const q = productSearch.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          getProductCategory(p.baleCode || '', p.category).toLowerCase().includes(q) ||
+          (p.baleCode && p.baleCode.toLowerCase().includes(q)) ||
+          p.barcode.toLowerCase().includes(q)
+        );
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [remainingProducts, productSearch, bales]);
