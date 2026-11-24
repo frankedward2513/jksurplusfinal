@@ -12,12 +12,81 @@ import {
   Upload, 
   HelpCircle,
   Eye,
+  X,
 } from 'lucide-react';
 import { LogItemStatusModal } from './LogItemStatusModal';
 import { ViewProductLostModal } from './ViewProductLostModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { PAGE_SIZE, Pagination } from './Pagination';
 import { formatContactNumber, isValidContactNumber, isValidEmail } from '../utils/validation';
+import { supabase } from '../lib/supabase';
+
+const PRODUCT_IMAGE_BUCKET = 'exins-product-images';
+const MAX_PRODUCT_IMAGES = 10;
+const MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024;
+const PRODUCT_IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/avif': 'avif',
+};
+
+function getProductImageUrls(product: Product): string[] {
+  const imageUrls = product.imageUrls?.filter((url) => url.trim().length > 0) || [];
+  return imageUrls.length > 0 ? imageUrls : product.imageUrl ? [product.imageUrl] : [];
+}
+
+function getProductImageStoragePath(imageUrl: string): string | null {
+  const objectUrlMarker = `/storage/v1/object/public/${PRODUCT_IMAGE_BUCKET}/`;
+  try {
+    const pathname = new URL(imageUrl).pathname;
+    const markerIndex = pathname.indexOf(objectUrlMarker);
+    return markerIndex < 0
+      ? null
+      : decodeURIComponent(pathname.slice(markerIndex + objectUrlMarker.length));
+  } catch {
+    return null;
+  }
+}
+
+async function uploadProductImageFiles(
+  productId: string,
+  files: File[],
+): Promise<{ urls: string[]; paths: string[] }> {
+  const storage = supabase.storage.from(PRODUCT_IMAGE_BUCKET);
+  const urls: string[] = [];
+  const paths: string[] = [];
+
+  try {
+    for (const file of files) {
+      const extension = PRODUCT_IMAGE_EXTENSIONS[file.type];
+      if (!extension) throw new Error(`Unsupported image format: ${file.name}`);
+
+      const path = `${productId}/${crypto.randomUUID()}.${extension}`;
+      const { error } = await storage.upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+
+      paths.push(path);
+      urls.push(storage.getPublicUrl(path).data.publicUrl);
+    }
+  } catch (error) {
+    if (paths.length > 0) {
+      const { error: cleanupError } = await storage.remove(paths);
+      if (cleanupError) {
+        const uploadError = error instanceof Error ? error.message : String(error);
+        throw new Error(`${uploadError} Also failed to remove partially uploaded photos: ${cleanupError.message}`);
+      }
+    }
+    throw error;
+  }
+
+  return { urls, paths };
+}
 
 export const InventoryManagementView: React.FC = () => {
   const {
@@ -256,11 +325,22 @@ export const InventoryManagementView: React.FC = () => {
   const [productSellingPrice, setProductSellingPrice] = useState<number | ''>('');
   const [productCostPrice, setProductCostPrice] = useState<number | ''>('');
   const [productSize, setProductSize] = useState('M');
-  const [productImageUrl, setProductImageUrl] = useState('');
+  const [productImageUrls, setProductImageUrls] = useState<string[]>([]);
+  const [productImageFiles, setProductImageFiles] = useState<File[]>([]);
+  const [isProductSaving, setIsProductSaving] = useState(false);
   const [productLink, setProductLink] = useState('');
   const [productDesc, setProductDesc] = useState('');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
+  const productImagePreviews = useMemo(
+    () => productImageFiles.map((file) => URL.createObjectURL(file)),
+    [productImageFiles],
+  );
+
+  useEffect(
+    () => () => productImagePreviews.forEach((preview) => URL.revokeObjectURL(preview)),
+    [productImagePreviews],
+  );
 
   // Handle Bale selection to automatically fill cost price
   const handleSelectProductBale = (selectedCode: string) => {
@@ -283,16 +363,29 @@ export const InventoryManagementView: React.FC = () => {
     return bale?.category || fallbackCategory || 'Apparel';
   };
 
-  // Handle image upload
   const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProductImageUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = Array.from(e.currentTarget.files || []);
+    e.currentTarget.value = '';
+    if (files.length === 0) return;
+
+    if (productImageUrls.length + productImageFiles.length + files.length > MAX_PRODUCT_IMAGES) {
+      showFormAlert(`You can upload up to ${MAX_PRODUCT_IMAGES} photos per product.`, 'error');
+      return;
     }
+
+    const invalidType = files.find((file) => !PRODUCT_IMAGE_EXTENSIONS[file.type]);
+    if (invalidType) {
+      showFormAlert(`${invalidType.name} is not a supported image format. Use JPEG, PNG, WebP, GIF, or AVIF.`, 'error');
+      return;
+    }
+
+    const oversizedFile = files.find((file) => file.size > MAX_PRODUCT_IMAGE_SIZE);
+    if (oversizedFile) {
+      showFormAlert(`${oversizedFile.name} exceeds the 5 MB per-photo limit.`, 'error');
+      return;
+    }
+
+    setProductImageFiles((previous) => [...previous, ...files]);
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -336,9 +429,17 @@ export const InventoryManagementView: React.FC = () => {
 
     const baleName = matchedBale.baleName;
     const categoryForSave = matchedBale.category;
+    const productId = editingProductId || `prod_${Date.now()}`;
+    const originalProduct = editingProductId
+      ? products.find((product) => product.id === editingProductId)
+      : undefined;
+    const originalImageUrls = originalProduct ? getProductImageUrls(originalProduct) : [];
 
-    if (editingProductId) {
-      await updateProduct(editingProductId, {
+    setIsProductSaving(true);
+    try {
+      const uploaded = await uploadProductImageFiles(productId, productImageFiles);
+      const imageUrls = [...productImageUrls, ...uploaded.urls];
+      const productData = {
         name: productName.trim(),
         category: categoryForSave,
         baleCode: productBaleCode,
@@ -347,40 +448,58 @@ export const InventoryManagementView: React.FC = () => {
         sellingPrice: Number(productSellingPrice),
         costPrice: Number(productCostPrice) || 0,
         size: productSize || 'Free Size',
-        imageUrl: productImageUrl,
+        imageUrl: imageUrls[0] || '',
+        imageUrls,
         productLink,
         description: productDesc,
-      });
+      };
+
+      const saved = editingProductId
+        ? await updateProduct(editingProductId, productData)
+        : await addProduct({ ...productData, barcode: '' }, productId);
+
+      if (!saved) {
+        if (uploaded.paths.length > 0) {
+          const { error } = await supabase.storage.from(PRODUCT_IMAGE_BUCKET).remove(uploaded.paths);
+          if (error) {
+            showFormAlert(`The product was not saved, and its uploaded photos could not be removed: ${error.message}`, 'error');
+          }
+        }
+        return;
+      }
+
+      if (editingProductId) {
+        const removedImagePaths = originalImageUrls
+          .filter((imageUrl) => !imageUrls.includes(imageUrl))
+          .map(getProductImageStoragePath)
+          .filter((path): path is string => path !== null);
+        if (removedImagePaths.length > 0) {
+          const { error } = await supabase.storage.from(PRODUCT_IMAGE_BUCKET).remove(removedImagePaths);
+          if (error) {
+            showFormAlert(`Product saved, but removed photos could not be deleted from storage: ${error.message}`, 'error');
+          }
+        }
+      }
+
+      setProductName('');
+      setProductCategory('');
+      setProductBaleCode('');
+      setProductQty('');
+      setProductSellingPrice('');
+      setProductCostPrice('');
+      setProductSize('M');
+      setProductImageUrls([]);
+      setProductImageFiles([]);
+      setProductLink('');
+      setProductDesc('');
       setEditingProductId(null);
-    } else {
-      await addProduct({
-        name: productName.trim(),
-        category: categoryForSave,
-        baleCode: productBaleCode,
-        baleName,
-        availableQuantity: Number(productQty),
-        sellingPrice: Number(productSellingPrice),
-        costPrice: Number(productCostPrice) || 0,
-        size: productSize || 'Free Size',
-        imageUrl: productImageUrl,
-        productLink,
-        description: productDesc,
-        barcode: '',
-      });
+      setIsProductFormOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showFormAlert(`Could not save product photos. ${message}`, 'error');
+    } finally {
+      setIsProductSaving(false);
     }
-
-    // Reset Form
-    setProductName('');
-    setProductCategory('');
-    setProductBaleCode('');
-    setProductQty('');
-    setProductSellingPrice('');
-    setProductCostPrice('');
-    setProductSize('M');
-    setProductImageUrl('');
-    setProductLink('');
-    setProductDesc('');
-    setIsProductFormOpen(false);
   };
 
   const startEditProduct = (p: Product) => {
@@ -393,7 +512,8 @@ export const InventoryManagementView: React.FC = () => {
     setProductSellingPrice(p.sellingPrice);
     setProductCostPrice(p.costPrice || 0);
     setProductSize(p.size || 'M');
-    setProductImageUrl(p.imageUrl || '');
+    setProductImageUrls(getProductImageUrls(p));
+    setProductImageFiles([]);
     setProductLink(p.productLink || '');
     setProductDesc(p.description || '');
     setActiveTab('products');
@@ -1645,6 +1765,8 @@ export const InventoryManagementView: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setEditingProductId(null);
+                    setProductImageUrls([]);
+                    setProductImageFiles([]);
                     setIsProductFormOpen(false);
                   }}
                   className="text-xs text-stone-400 hover:text-white cursor-pointer"
@@ -1776,26 +1898,77 @@ export const InventoryManagementView: React.FC = () => {
               {/* Image Upload & Description */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="block font-medium text-stone-300 mb-1">Product Image File Upload</label>
-                  <div className="flex items-center gap-3">
-                    <label className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-dashed border-orange-500/40 hover:border-orange-500 bg-stone-950 text-stone-300 cursor-pointer transition">
-                      <Upload className="w-4 h-4 text-orange-400" />
-                      <span>{productImageUrl ? 'Change Product Photo' : 'Upload Product Photo'}</span>
+                  <label className="block font-medium text-stone-300 mb-1">Product Photos</label>
+                  <div className="flex items-center justify-between gap-3">
+                    <label className={`flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-orange-500/40 bg-stone-950 px-4 py-2.5 text-stone-300 transition ${
+                      isProductSaving || productImageUrls.length + productImageFiles.length >= MAX_PRODUCT_IMAGES
+                        ? 'cursor-not-allowed opacity-50'
+                        : 'cursor-pointer hover:border-orange-500'
+                    }`}>
+                      <Upload className="h-4 w-4 text-orange-400" />
+                      <span>Add Photos</span>
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                        multiple
                         onChange={handleProductImageUpload}
+                        disabled={isProductSaving || productImageUrls.length + productImageFiles.length >= MAX_PRODUCT_IMAGES}
                         className="hidden"
                       />
                     </label>
-                    {productImageUrl && (
-                      <img
-                        src={productImageUrl}
-                        alt="Product preview"
-                        className="w-14 h-14 rounded-xl object-cover border border-orange-500/40"
-                      />
-                    )}
+                    <span className="shrink-0 text-[11px] text-stone-400">
+                      {productImageUrls.length + productImageFiles.length}/{MAX_PRODUCT_IMAGES}
+                    </span>
                   </div>
+                  <p className="mt-1 text-[10px] text-stone-500">JPEG, PNG, WebP, GIF, or AVIF; up to 5 MB each.</p>
+                  {(productImageUrls.length > 0 || productImagePreviews.length > 0) && (
+                    <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {productImageUrls.map((imageUrl, index) => (
+                        <div key={`saved-${index}-${imageUrl}`} className="group relative aspect-square">
+                          <img
+                            src={imageUrl}
+                            alt={`Product photo ${index + 1}`}
+                            className="h-full w-full rounded-xl border border-orange-500/40 bg-stone-900 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setProductImageUrls((previous) =>
+                                previous.filter((_, imageIndex) => imageIndex !== index),
+                              )
+                            }
+                            disabled={isProductSaving}
+                            aria-label={`Remove product photo ${index + 1}`}
+                            className="absolute right-1 top-1 rounded-full bg-stone-950/90 p-1 text-stone-200 transition hover:bg-red-700 disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {productImagePreviews.map((previewUrl, index) => (
+                        <div key={`pending-${index}`} className="group relative aspect-square">
+                          <img
+                            src={previewUrl}
+                            alt={`New product photo ${index + 1}`}
+                            className="h-full w-full rounded-xl border border-orange-500/40 bg-stone-900 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setProductImageFiles((previous) =>
+                                previous.filter((_, fileIndex) => fileIndex !== index),
+                              )
+                            }
+                            disabled={isProductSaving}
+                            aria-label={`Remove new product photo ${index + 1}`}
+                            className="absolute right-1 top-1 rounded-full bg-stone-950/90 p-1 text-stone-200 transition hover:bg-red-700 disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Product Description */}
@@ -1813,9 +1986,10 @@ export const InventoryManagementView: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full sm:w-auto py-3 px-6 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white font-bold text-xs shadow-md shadow-orange-600/30 transition cursor-pointer"
+                disabled={isProductSaving}
+                className="w-full sm:w-auto py-3 px-6 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 hover:from-orange-500 hover:to-amber-600 text-white font-bold text-xs shadow-md shadow-orange-600/30 transition cursor-pointer disabled:cursor-wait disabled:opacity-60"
               >
-                {editingProductId ? 'Update Product' : 'List Product'}
+                {isProductSaving ? 'Saving Photos...' : editingProductId ? 'Update Product' : 'List Product'}
               </button>
             </form>
           </div>
@@ -1831,7 +2005,8 @@ export const InventoryManagementView: React.FC = () => {
                 setProductSellingPrice('');
                 setProductCostPrice('');
                 setProductSize('M');
-                setProductImageUrl('');
+                setProductImageUrls([]);
+                setProductImageFiles([]);
                 setProductLink('');
                 setProductDesc('');
                 setIsProductFormOpen(true);

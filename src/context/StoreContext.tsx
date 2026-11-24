@@ -107,8 +107,8 @@ interface StoreContextType {
   deleteCategory: (id: string) => Promise<void>;
 
   // Product Management
-  addProduct: (prod: Omit<Product, 'id' | 'createdAt'>) => Promise<void>;
-  updateProduct: (id: string, updates: Partial<Product>, notify?: boolean) => Promise<void>;
+  addProduct: (prod: Omit<Product, 'id' | 'createdAt'>, id?: string) => Promise<boolean>;
+  updateProduct: (id: string, updates: Partial<Product>, notify?: boolean) => Promise<boolean>;
   deleteProduct: (id: string) => Promise<void>;
 
   // Supplier Management
@@ -1001,8 +1001,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Product Management
-  const addProduct = async (prodData: Omit<Product, 'id' | 'createdAt'>) => {
-    const id = `prod_${Date.now()}`;
+  const addProduct = async (
+    prodData: Omit<Product, 'id' | 'createdAt'>,
+    id = `prod_${Date.now()}`
+  ): Promise<boolean> => {
     const newProd: Product = {
       ...prodData,
       barcode: prodData.barcode.trim() || generateProductBarcode(products),
@@ -1014,23 +1016,30 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       await setDoc(doc(db, 'products', id), cleanFirestoreData(newProd));
     } catch (err) {
+      setProducts((prev) => prev.filter((product) => product.id !== id));
       handleFirestoreError(err, OperationType.CREATE, `products/${id}`);
       showMutationError('add', 'product', err);
-      return;
+      return false;
     }
     showFormAlert('Product added successfully.', 'success');
+    return true;
   };
 
-  const updateProduct = async (id: string, updates: Partial<Product>, notify = true) => {
+  const updateProduct = async (id: string, updates: Partial<Product>, notify = true): Promise<boolean> => {
+    const previousProduct = products.find((product) => product.id === id);
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
     try {
       await updateDoc(doc(db, 'products', id), cleanFirestoreData(updates));
     } catch (err) {
+      if (previousProduct) {
+        setProducts((prev) => prev.map((product) => (product.id === id ? previousProduct : product)));
+      }
       handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
       showMutationError('update', 'product', err);
-      return;
+      return false;
     }
     if (notify) showFormAlert('Product updated successfully.', 'success');
+    return true;
   };
 
   const deleteProduct = async (id: string) => {

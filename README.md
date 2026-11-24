@@ -24,7 +24,9 @@ Select every Vercel deployment environment that needs the database (Production, 
 
 After changing a local `.env`, restart the Vite development server and reload the page; local inventory caches are isolated by Supabase project.
 
-For a new Supabase project, run the single consolidated [`supabase_setup.sql`](../firestore_and_schema_in_exins/supabase_setup.sql) file in the SQL Editor. It creates the app tables and row-level security policies, staff POS transaction policy, admin-only Status Log, and exBIN recycle bin with 30-day retention. The purge job requires the Supabase `pg_cron` extension. Do not disable row-level security to fix access errors.
+For a new Supabase project, run the single consolidated [`supabase_setup.sql`](../firestore_and_schema_in_exins/supabase_setup.sql) file in the SQL Editor. It creates the app tables and row-level security policies, staff POS transaction policy, admin-only Status Log, exBIN recycle bin with 30-day retention, and public product-photo storage. Product photos support up to 10 images per product, 5 MB each. The purge job requires the Supabase `pg_cron` extension. Do not disable row-level security to fix access errors.
+
+For an existing project, run the grants block and the **Product photo migration and public Supabase Storage bucket** block near the end of the setup file.
 
 The setup file does not create Supabase Auth accounts. Create the owner and staff accounts in Supabase Auth, then run the role-assignment block near the end of the setup file. Sign out and back in afterward so the refreshed JWT includes the trusted `app_metadata.exins_role` claim. The app and database policies use that claim; a role stored only in `public.users` is not sufficient.
 

@@ -12,12 +12,18 @@ import {
   X,
 } from 'lucide-react';
 
+function getProductImageUrls(product: Product): string[] {
+  const imageUrls = product.imageUrls?.filter((url) => url.trim().length > 0) || [];
+  return imageUrls.length > 0 ? imageUrls : product.imageUrl ? [product.imageUrl] : [];
+}
+
 export const ShowcaseShopView: React.FC = () => {
   const { products, categories } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [maximumPrice, setMaximumPrice] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -68,6 +74,7 @@ export const ShowcaseShopView: React.FC = () => {
     [availableProducts, searchQuery, selectedCategory, maximumPrice],
   );
   const hasAvailableProducts = availableProducts.length > 0;
+  const selectedProductImages = selectedProduct ? getProductImageUrls(selectedProduct) : [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -185,62 +192,73 @@ export const ShowcaseShopView: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  type="button"
-                  onClick={() => setSelectedProduct(product)}
-                  aria-label={`View details for ${product.name}`}
-                  className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-orange-500/20 text-left glass-panel glass-panel-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
-                >
-                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-950">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="flex h-full flex-col items-center justify-center bg-stone-900 text-stone-600">
-                        <Shirt className="mb-2 h-10 w-10 opacity-50" />
-                        <span className="text-xs">EXINS Fashion</span>
-                      </div>
-                    )}
-                    <span className="absolute left-3 top-3 rounded-lg border border-orange-500/30 bg-stone-950/80 px-2.5 py-1 text-xs font-bold text-orange-400">
-                      Size: {product.size || 'Free Size'}
-                    </span>
-                  </div>
-                  <div className="flex flex-1 flex-col justify-between space-y-4 p-5">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-400">
-                          {product.category || 'Apparel'}
+              {filteredProducts.map((product) => {
+                const productImages = getProductImageUrls(product);
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedImageIndex(0);
+                      setSelectedProduct(product);
+                    }}
+                    aria-label={`View details for ${product.name}`}
+                    className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-orange-500/20 text-left glass-panel glass-panel-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
+                  >
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-950">
+                      {productImages[0] ? (
+                        <img
+                          src={productImages[0]}
+                          alt={product.name}
+                          className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full flex-col items-center justify-center bg-stone-900 text-stone-600">
+                          <Shirt className="mb-2 h-10 w-10 opacity-50" />
+                          <span className="text-xs">EXINS Fashion</span>
+                        </div>
+                      )}
+                      <span className="absolute left-3 top-3 rounded-lg border border-orange-500/30 bg-stone-950/80 px-2.5 py-1 text-xs font-bold text-orange-400">
+                        Size: {product.size || 'Free Size'}
+                      </span>
+                      {productImages.length > 1 && (
+                        <span className="absolute right-3 top-3 rounded-lg border border-stone-700 bg-stone-950/80 px-2.5 py-1 text-xs font-bold text-stone-200">
+                          {productImages.length} photos
                         </span>
-                      </div>
-                      <h2 className="line-clamp-1 text-base font-bold leading-snug text-white">
-                        {product.name}
-                      </h2>
-                      <p className="line-clamp-2 text-xs text-stone-400">
-                        {product.description || 'Exclusive apparel from JKsur+.'}
-                      </p>
+                      )}
                     </div>
-                    <div className="flex items-end justify-between gap-3 border-t border-stone-800/80 pt-3">
-                      <div>
-                        <p className="text-[10px] uppercase text-stone-400">Price</p>
-                        <p className="font-mono text-lg font-black text-orange-400">
-                          ₱{product.sellingPrice.toLocaleString()}
+                    <div className="flex flex-1 flex-col justify-between space-y-4 p-5">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-400">
+                            {product.category || 'Apparel'}
+                          </span>
+                        </div>
+                        <h2 className="line-clamp-1 text-base font-bold leading-snug text-white">
+                          {product.name}
+                        </h2>
+                        <p className="line-clamp-2 text-xs text-stone-400">
+                          {product.description || 'Exclusive apparel from JKsur+.'}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[10px] uppercase text-stone-400">Available</p>
-                        <p className="font-mono text-sm font-bold text-stone-200">
-                          {product.availableQuantity} pcs
-                        </p>
+                      <div className="flex items-end justify-between gap-3 border-t border-stone-800/80 pt-3">
+                        <div>
+                          <p className="text-[10px] uppercase text-stone-400">Price</p>
+                          <p className="font-mono text-lg font-black text-orange-400">
+                            ₱{product.sellingPrice.toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase text-stone-400">Available</p>
+                          <p className="font-mono text-sm font-bold text-stone-200">
+                            {product.availableQuantity} pcs
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -256,28 +274,54 @@ export const ShowcaseShopView: React.FC = () => {
             onClick={(event) => event.stopPropagation()}
             className="grid h-[90vh] max-h-[850px] w-full max-w-5xl grid-rows-[minmax(180px,35vh)_minmax(0,1fr)] overflow-hidden rounded-3xl border border-orange-500/30 bg-stone-900 text-stone-100 shadow-2xl md:grid-cols-2 md:grid-rows-1"
           >
-            <div className="relative min-h-0 bg-stone-950">
-              {selectedProduct.imageUrl ? (
-                <img
-                  src={selectedProduct.imageUrl}
-                  alt={selectedProduct.name}
-                  className="h-full w-full object-contain p-2"
-                />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center text-stone-600">
-                  <Shirt className="mb-2 h-12 w-12 opacity-50" />
-                  <span className="text-sm">EXINS Fashion</span>
+            <div className="flex min-h-0 flex-col bg-stone-950">
+              <div className="relative min-h-0 flex-1">
+                {selectedProductImages[selectedImageIndex] ? (
+                  <img
+                    src={selectedProductImages[selectedImageIndex]}
+                    alt={`${selectedProduct.name}, photo ${selectedImageIndex + 1}`}
+                    className="h-full w-full object-contain p-2"
+                  />
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center text-stone-600">
+                    <Shirt className="mb-2 h-12 w-12 opacity-50" />
+                    <span className="text-sm">EXINS Fashion</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedProduct(null)}
+                  aria-label="Close product details"
+                  autoFocus
+                  className="absolute right-3 top-3 rounded-xl border border-stone-700 bg-stone-950/85 p-2 text-stone-300 transition hover:bg-stone-800 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              {selectedProductImages.length > 1 && (
+                <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-stone-800 p-2">
+                  {selectedProductImages.map((imageUrl, index) => (
+                    <button
+                      key={`${imageUrl}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedImageIndex(index)}
+                      aria-label={`View photo ${index + 1}`}
+                      aria-pressed={selectedImageIndex === index}
+                      className={`h-12 w-12 shrink-0 overflow-hidden rounded-lg border ${
+                        selectedImageIndex === index
+                          ? 'border-orange-400'
+                          : 'border-stone-700 opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  ))}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={() => setSelectedProduct(null)}
-                aria-label="Close product details"
-                autoFocus
-                className="absolute right-3 top-3 rounded-xl border border-stone-700 bg-stone-950/85 p-2 text-stone-300 transition hover:bg-stone-800 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
             </div>
 
             <div className="min-h-0 space-y-6 overflow-y-auto p-5 sm:p-7">

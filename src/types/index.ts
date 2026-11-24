@@ -54,6 +54,7 @@ export interface Product {
   costPrice: number;
   size: string;
   imageUrl: string;
+  imageUrls?: string[];
   productLink: string;
   description: string;
   barcode: string;
