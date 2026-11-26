@@ -1,0 +1,164 @@
+@startuml
+title EXINS Inventory Management Activity Diagram
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor white
+  BorderColor black
+  FontColor black
+  DiamondBackgroundColor white
+  DiamondBorderColor black
+}
+
+|Admin / Staff|
+start
+:Open Inventory Management;
+
+|EXINS System|
+:Request suppliers, categories,\nbales, products, and status logs;
+
+|Supabase Database / Storage|
+:Return inventory records;
+
+|EXINS System|
+if (Data loaded successfully?) then (Yes)
+  :Display inventory tabs and lists;
+else (No)
+  :Display database error;
+  stop
+endif
+
+while (Continue managing inventory?) is (Yes)
+  |Admin / Staff|
+  :Choose a tab and browse,\nsearch, filter, or paginate;
+  :Choose an action;
+
+  if (Create or edit a record?) then (Yes)
+    :Enter or update supplier,\ncategory, bale, or product details;
+
+    |EXINS System|
+    :Validate required fields and values;
+    while (Details invalid?) is (Yes)
+      :Display validation error;
+      |Admin / Staff|
+      :Correct details and resubmit;
+      |EXINS System|
+      :Validate details again;
+    endwhile (No)
+
+    if (Saving a product?) then (Yes)
+      |Admin / Staff|
+      :Select or remove product photos;
+      |EXINS System|
+      :Validate photo count, format,\nand file size;
+      while (Photo selection invalid?) is (Yes)
+        :Display photo selection error;
+        |Admin / Staff|
+        :Correct photo selection;
+        |EXINS System|
+        :Validate photos again;
+      endwhile (No)
+      note right
+        Up to 10 photos per product.
+        JPEG, PNG, WebP, GIF, or AVIF.
+        Maximum 5 MB per photo.
+      end note
+
+      if (New photos selected?) then (Yes)
+        |Supabase Database / Storage|
+        :Upload photos to Storage;
+        if (Upload succeeded?) then (Yes)
+          |EXINS System|
+          :Attach photo URLs to product;
+        else (No)
+          :Remove partial uploads\nand display upload error;
+          stop
+        endif
+      endif
+    endif
+
+    |Supabase Database / Storage|
+    :Save supplier, category,\nbale, or product record;
+    if (Save succeeded?) then (Yes)
+      if (Product photos removed?) then (Yes)
+        :Delete removed Storage files;
+      endif
+      |EXINS System|
+      :Refresh inventory list\nand display success;
+    else (No)
+      if (New product photos uploaded?) then (Yes)
+        |Supabase Database / Storage|
+        :Remove unreferenced uploads;
+      endif
+      |EXINS System|
+      :Display database error;
+      stop
+    endif
+
+  elseif (Delete a record?) then (Yes)
+    |EXINS System|
+    :Display delete confirmation;
+    |Admin / Staff|
+    if (Confirm deletion?) then (Yes)
+      |Supabase Database / Storage|
+      :Move record to exBIN;
+      if (Move succeeded?) then (Yes)
+        |EXINS System|
+        :Refresh list and display success;
+      else (No)
+        |EXINS System|
+        :Keep record and display error;
+      endif
+    else (Cancel)
+      |EXINS System|
+      :Keep record unchanged;
+    endif
+
+  elseif (Change bale status?) then (Yes)
+    |Admin / Staff|
+    :Choose sealed, opened, or depleted;
+    |Supabase Database / Storage|
+    :Save bale status;
+    if (Save succeeded?) then (Yes)
+      |EXINS System|
+      :Refresh bale list and display success;
+    else (No)
+      |EXINS System|
+      :Display database error;
+    endif
+
+  elseif (Log or view lost items?) then (Yes)
+    |Admin / Staff|
+    if (Log a lost item?) then (Yes)
+      :Select an in-stock product;\nenter quantity and optional note;
+      |EXINS System|
+      :Validate quantity is a positive\nwhole number within available stock;
+      if (Quantity valid?) then (Yes)
+        |Supabase Database / Storage|
+        :Save lost-item log\nand adjust product stock;
+        if (Log saved?) then (Yes)
+          |EXINS System|
+          :Refresh inventory and display success;
+        else (No)
+          |EXINS System|
+          :Display database error;
+        endif
+      else (No)
+        :Display quantity error;
+      endif
+    else (View history)
+      |Supabase Database / Storage|
+      :Read lost-item history;
+      |EXINS System|
+      :Display lost-item history;
+    endif
+
+  else (Browse)
+    |EXINS System|
+    :Display selected inventory list;
+  endif
+endwhile (No)
+
+|Admin / Staff|
+:Leave Inventory Management;
+stop
+@enduml

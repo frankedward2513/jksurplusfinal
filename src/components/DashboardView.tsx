@@ -18,7 +18,6 @@ import {
   Boxes,
   Trophy,
 } from 'lucide-react';
-import { PAGE_SIZE, Pagination } from './Pagination';
 import type { ActiveTab } from './Navbar';
 import { addMissingPosInflows, getLocalDateKey, isDateWithinFilter } from '../utils/financialInflow';
 
@@ -39,6 +38,12 @@ const MONTH_OPTIONS = [
   'December',
 ];
 
+const matchesMonthYearFilter = (dateKey: string, month: string, year: string) => {
+  if (year && !/^\d{4}$/.test(year)) return false;
+  return (!year || dateKey.startsWith(`${year}-`)) &&
+    (!month || dateKey.endsWith(`-${month.padStart(2, '0')}`));
+};
+
 interface DashboardViewProps {
   onNavigate: (tab: ActiveTab) => void;
 }
@@ -58,7 +63,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [slowMovingCategory, setSlowMovingCategory] = useState('all');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
-  const [monthlyBreakdownPage, setMonthlyBreakdownPage] = useState(1);
+  const [monthlyBreakdownMonth, setMonthlyBreakdownMonth] = useState('');
+  const [monthlyBreakdownYear, setMonthlyBreakdownYear] = useState('');
+  const [categoryPerformanceMonth, setCategoryPerformanceMonth] = useState('');
+  const [categoryPerformanceYear, setCategoryPerformanceYear] = useState('');
   const [topCustomersMonth, setTopCustomersMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -204,9 +212,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       };
     });
   }, [transactions, salesInflows]);
-  const visibleMonthlyBreakdown = monthlyBreakdown.slice(
-    (monthlyBreakdownPage - 1) * PAGE_SIZE,
-    monthlyBreakdownPage * PAGE_SIZE,
+  const filteredMonthlyBreakdown = useMemo(
+    () =>
+      monthlyBreakdown.filter((row) =>
+        matchesMonthYearFilter(row.monthKey, monthlyBreakdownMonth, monthlyBreakdownYear),
+      ),
+    [monthlyBreakdown, monthlyBreakdownMonth, monthlyBreakdownYear],
   );
 
   const topCustomers = useMemo(() => {
@@ -263,6 +274,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
     orders
       .filter((order) => order.status !== 'cancelled')
+      .filter((order) => {
+        const dateKey = getLocalDateKey(order.createdAt);
+        return dateKey && matchesMonthYearFilter(dateKey, categoryPerformanceMonth, categoryPerformanceYear);
+      })
       .forEach((order) => {
         order.items.forEach((item) => {
           const category = productCategories.get(item.productId) || 'Uncategorized';
@@ -272,9 +287,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
     return [...quantityByCategory.entries()]
       .map(([name, unitsSold]) => ({ name, unitsSold }))
-      .sort((a, b) => b.unitsSold - a.unitsSold || a.name.localeCompare(b.name))
-      .slice(0, 5);
-  }, [orders, products]);
+      .sort((a, b) => b.unitsSold - a.unitsSold || a.name.localeCompare(b.name));
+  }, [orders, products, categoryPerformanceMonth, categoryPerformanceYear]);
 
   const lowStockCategories = useMemo(() => {
     const categoryTotals = new Map<string, { name: string; availableUnits: number; productCount: number }>();
@@ -815,30 +829,63 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
 
       {/* Monthly Performance Breakdown Summary Table */}
       <div className="p-6 rounded-2xl glass-panel space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-orange-500/20">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-orange-500/20">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Layers className="w-5 h-5 text-orange-400" />
               <span>Monthly Performance Breakdown Summary</span>
             </h2>
           </div>
-          <span className="text-xs px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-mono">
-            {monthlyBreakdown.length} Recorded Months
-          </span>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-stone-300">
+            <Calendar className="h-4 w-4 text-orange-400" />
+            <label htmlFor="dashboard-monthly-breakdown-month">Month</label>
+            <select
+              id="dashboard-monthly-breakdown-month"
+              value={monthlyBreakdownMonth}
+              onChange={(event) => setMonthlyBreakdownMonth(event.target.value)}
+              className="cursor-pointer rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-white"
+            >
+              <option value="">All months</option>
+              {MONTH_OPTIONS.map((month, index) => (
+                <option key={month} value={String(index + 1).padStart(2, '0')}>
+                  {month}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="dashboard-monthly-breakdown-year">Year</label>
+            <input
+              id="dashboard-monthly-breakdown-year"
+              type="number"
+              min="1000"
+              max="9999"
+              step="1"
+              placeholder="Any"
+              value={monthlyBreakdownYear}
+              onChange={(event) => setMonthlyBreakdownYear(event.target.value)}
+              className="w-24 rounded-xl border border-orange-500/30 bg-stone-900 px-3 py-2 text-white"
+            />
+            <span className="text-xs px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 font-mono">
+              {filteredMonthlyBreakdown.length} Recorded Months
+            </span>
+          </div>
         </div>
 
-        {monthlyBreakdown.length === 0 ? (
+        {filteredMonthlyBreakdown.length === 0 ? (
           <div className="text-center py-10 text-stone-400 space-y-2">
-            <p className="text-sm">No monthly performance records yet.</p>
+            <p className="text-sm">
+              {monthlyBreakdown.length === 0
+                ? 'No monthly performance records yet.'
+                : 'No monthly performance records match this month and year.'}
+            </p>
             <p className="text-xs text-stone-400">
               As you record sales in POS or Shop, and disbursements in Expenses, monthly breakdown summaries will automatically compute here.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[17rem] overflow-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-orange-500/20 text-stone-400 uppercase tracking-wider text-[11px]">
+                <tr className="sticky top-0 z-10 border-b border-orange-500/20 bg-stone-950 text-stone-400 uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Period / Month</th>
                   <th className="py-3 px-4 text-right">Sales Inflow</th>
                   <th className="py-3 px-4 text-right">Expense Outflow</th>
@@ -847,7 +894,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-800/60 font-mono">
-                {visibleMonthlyBreakdown.map((row) => (
+                {filteredMonthlyBreakdown.map((row) => (
                   <tr key={row.monthKey} className="hover:bg-stone-800/40 transition">
                     <td className="py-3.5 px-4 font-sans font-semibold text-white">{row.label}</td>
                     <td className="py-3.5 px-4 text-right font-medium text-emerald-400">
@@ -880,11 +927,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 ))}
               </tbody>
             </table>
-            <Pagination
-              totalItems={monthlyBreakdown.length}
-              currentPage={monthlyBreakdownPage}
-              onPageChange={setMonthlyBreakdownPage}
-            />
           </div>
         )}
       </div>
@@ -892,21 +934,51 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       <section aria-label="Additional business insights" className="space-y-5">
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
           <div className="p-5 sm:p-6 rounded-2xl glass-panel space-y-4">
-            <div className="flex items-start justify-between gap-3 border-b border-orange-500/20 pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-orange-500/20 pb-3">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-emerald-400" />
                   Best-selling categories
                 </h2>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1">
-                Top 5
-              </span>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-stone-300">
+                <Calendar className="h-4 w-4 text-emerald-400" />
+                <label htmlFor="dashboard-category-performance-month">Month</label>
+                <select
+                  id="dashboard-category-performance-month"
+                  value={categoryPerformanceMonth}
+                  onChange={(event) => setCategoryPerformanceMonth(event.target.value)}
+                  className="cursor-pointer rounded-xl border border-emerald-500/30 bg-stone-900 px-3 py-2 text-white"
+                >
+                  <option value="">All months</option>
+                  {MONTH_OPTIONS.map((month, index) => (
+                    <option key={month} value={String(index + 1).padStart(2, '0')}>
+                      {month}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="dashboard-category-performance-year">Year</label>
+                <input
+                  id="dashboard-category-performance-year"
+                  type="number"
+                  min="1000"
+                  max="9999"
+                  step="1"
+                  placeholder="Any"
+                  value={categoryPerformanceYear}
+                  onChange={(event) => setCategoryPerformanceYear(event.target.value)}
+                  className="w-24 rounded-xl border border-emerald-500/30 bg-stone-900 px-3 py-2 text-white"
+                />
+              </div>
             </div>
             {categoryPerformance.length === 0 ? (
-              <p className="py-8 text-center text-sm text-stone-400">Sales by category will appear here once products are sold.</p>
+              <p className="py-8 text-center text-sm text-stone-400">
+                {categoryPerformanceMonth || categoryPerformanceYear
+                  ? 'No category sales found for this month and year.'
+                  : 'Sales by category will appear here once products are sold.'}
+              </p>
             ) : (
-              <div className="space-y-4">
+              <div className="max-h-[17rem] space-y-4 overflow-y-auto pr-2">
                 {categoryPerformance.map((category, index) => {
                   const leadingUnits = categoryPerformance[0].unitsSold || 1;
                   return (
